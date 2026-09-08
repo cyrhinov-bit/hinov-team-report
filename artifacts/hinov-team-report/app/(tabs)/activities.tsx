@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { ActivityStatus, useAppState } from '@/context/AppStateContext';
@@ -9,11 +9,12 @@ import { useColors } from '@/hooks/useColors';
 
 const categories = ['Coordination', 'Clients', 'Production', 'Administration'];
 const statuses: ActivityStatus[] = ['Terminée', 'En cours', 'En attente'];
+const logo = require('@/assets/images/htr-logo.jpeg');
 
 export default function ActivitiesScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { activities, addActivity, deleteActivity } = useAppState();
+  const { activities, profile, addActivity, deleteActivity } = useAppState();
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -57,13 +58,16 @@ export default function ActivitiesScreen() {
           <Text style={[styles.title, { color: colors.foreground }]}>Mes activités</Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Capturez vos avancées au fil de la semaine.</Text>
         </View>
-        <Pressable
-          testID="toggle-activity-form"
-          onPress={() => setIsAdding((current) => !current)}
-          style={({ pressed }) => [styles.addButton, { backgroundColor: colors.primary, opacity: pressed ? 0.75 : 1 }]}
-        >
-          <Feather name={isAdding ? 'x' : 'plus'} size={21} color={colors.primaryForeground} />
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Image source={profile.avatarUri ? { uri: profile.avatarUri } : logo} style={[styles.headerAvatar, { borderColor: colors.border }]} />
+          <Pressable
+            testID="toggle-activity-form"
+            onPress={() => setIsAdding((current) => !current)}
+            style={({ pressed }) => [styles.addButton, { backgroundColor: colors.primary, opacity: pressed ? 0.75 : 1 }]}
+          >
+            <Feather name={isAdding ? 'x' : 'plus'} size={21} color={colors.primaryForeground} />
+          </Pressable>
+        </View>
       </View>
 
       {isAdding ? (
@@ -181,6 +185,8 @@ export default function ActivitiesScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 22, marginBottom: 22 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerAvatar: { width: 42, height: 42, borderRadius: 21, borderWidth: 1, padding: 2 },
   eyebrow: { fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 1.3, marginBottom: 7 },
   title: { fontSize: 28, fontFamily: 'Inter_700Bold', letterSpacing: -0.6 },
   subtitle: { fontSize: 13, fontFamily: 'Inter_400Regular', marginTop: 7, maxWidth: 270 },

@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 export type ActivityStatus = 'Terminée' | 'En cours' | 'En attente';
@@ -17,6 +18,7 @@ export type Profile = {
   role: string;
   department: string;
   email: string;
+  avatarUri?: string;
 };
 
 type AppStateContextValue = {
@@ -24,6 +26,7 @@ type AppStateContextValue = {
   profile: Profile;
   difficulties: string;
   perspectives: string;
+  hasGeminiApiKey: boolean;
   isHydrated: boolean;
   addActivity: (activity: Omit<Activity, 'id'>) => void;
   updateActivity: (id: string, activity: Partial<Activity>) => void;
@@ -31,9 +34,12 @@ type AppStateContextValue = {
   updateProfile: (profile: Partial<Profile>) => void;
   setDifficulties: (value: string) => void;
   setPerspectives: (value: string) => void;
+  saveGeminiApiKey: (value: string) => Promise<void>;
+  clearGeminiApiKey: () => Promise<void>;
 };
 
 const STORAGE_KEY = '@hinov-team-report/state';
+const GEMINI_KEY_STORAGE = '@hinov-team-report/gemini-api-key';
 const initialActivities: Activity[] = [
   {
     id: 'sample-1',
@@ -67,6 +73,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile>(initialProfile);
   const [difficulties, setDifficulties] = useState('');
   const [perspectives, setPerspectives] = useState('');
+  const [hasGeminiApiKey, setHasGeminiApiKey] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
@@ -87,6 +94,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       })
       .catch(() => undefined)
       .finally(() => setIsHydrated(true));
+    SecureStore.getItemAsync(GEMINI_KEY_STORAGE)
+      .then((key) => setHasGeminiApiKey(Boolean(key)))
+      .catch(() => setHasGeminiApiKey(false));
   }, []);
 
   useEffect(() => {
@@ -103,6 +113,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       profile,
       difficulties,
       perspectives,
+      hasGeminiApiKey,
       isHydrated,
       addActivity: (activity) =>
         setActivities((current) => [
@@ -119,8 +130,24 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         setProfile((current) => ({ ...current, ...nextProfile })),
       setDifficulties,
       setPerspectives,
+      saveGeminiApiKey: async (value) => {
+        const trimmed = value.trim();
+        if (!trimmed) {
+          await SecureStore.deleteItemAsync(GEMINI_KEY_STORAGE);
+          setHasGeminiApiKey(false);
+          return;
+        }
+        await SecureStore.setItemAsync(GEMINI_KEY_STORAGE, trimmed, {
+          keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+        });
+        setHasGeminiApiKey(true);
+      },
+      clearGeminiApiKey: async () => {
+        await SecureStore.deleteItemAsync(GEMINI_KEY_STORAGE);
+        setHasGeminiApiKey(false);
+      },
     }),
-    [activities, profile, difficulties, perspectives, isHydrated],
+    [activities, profile, difficulties, perspectives, hasGeminiApiKey, isHydrated],
   );
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;

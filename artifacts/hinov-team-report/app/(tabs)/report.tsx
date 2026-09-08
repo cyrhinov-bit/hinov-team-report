@@ -1,18 +1,19 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useAppState } from '@/context/AppStateContext';
 import { useColors } from '@/hooks/useColors';
 
 const weekDays = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
+const logo = require('@/assets/images/htr-logo.jpeg');
 
 export default function ReportScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { activities, difficulties, perspectives, setDifficulties, setPerspectives } = useAppState();
+  const { activities, profile, difficulties, perspectives, setDifficulties, setPerspectives } = useAppState();
   const [isImproved, setIsImproved] = useState(false);
   const grouped = useMemo(() => {
     const byDay = new Map<string, typeof activities>();
@@ -48,9 +49,12 @@ export default function ReportScreen() {
           <Text style={[styles.title, { color: colors.foreground }]}>Mon rapport</Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Du 08 au 12 septembre 2026</Text>
         </View>
-        <View style={[styles.statusPill, { backgroundColor: colors.orangeSoft }]}>
-          <View style={[styles.statusDot, { backgroundColor: colors.warning }]} />
-          <Text style={[styles.statusText, { color: colors.warning }]}>Brouillon</Text>
+        <View style={styles.headerActions}>
+          <Image source={profile.avatarUri ? { uri: profile.avatarUri } : logo} style={[styles.headerAvatar, { borderColor: colors.border }]} />
+          <View style={[styles.statusPill, { backgroundColor: colors.orangeSoft }]}>
+            <View style={[styles.statusDot, { backgroundColor: colors.warning }]} />
+            <Text style={[styles.statusText, { color: colors.warning }]}>Brouillon</Text>
+          </View>
         </View>
       </View>
 
@@ -141,6 +145,8 @@ export default function ReportScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 22, marginBottom: 22 },
+  headerActions: { alignItems: 'flex-end', gap: 10 },
+  headerAvatar: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, padding: 2 },
   eyebrow: { fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 1.3, marginBottom: 7 },
   title: { fontSize: 28, fontFamily: 'Inter_700Bold', letterSpacing: -0.6 },
   subtitle: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 7 },

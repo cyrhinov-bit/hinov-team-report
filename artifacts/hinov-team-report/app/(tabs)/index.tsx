@@ -46,7 +46,7 @@ export default function HomeScreen() {
           onPress={() => router.push('/profile')}
           style={({ pressed }) => [styles.avatarButton, { opacity: pressed ? 0.7 : 1 }]}
         >
-          <Image source={logo} style={styles.avatarImage} />
+          <Image source={profile.avatarUri ? { uri: profile.avatarUri } : logo} style={styles.avatarImage} />
         </Pressable>
       </View>
 

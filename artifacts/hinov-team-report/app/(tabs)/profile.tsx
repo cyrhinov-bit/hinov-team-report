@@ -1,7 +1,9 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useAppState } from '@/context/AppStateContext';
@@ -27,6 +29,24 @@ export default function ProfileScreen() {
     Alert.alert('Profil enregistré', 'Vos informations ont bien été mises à jour.');
   };
 
+  const choosePhoto = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Accès à la galerie refusé', 'Autorisez l’accès à vos photos pour choisir une photo de profil.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.75,
+    });
+    if (!result.canceled && result.assets[0]?.uri) {
+      updateProfile({ avatarUri: result.assets[0].uri });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  };
+
   return (
     <KeyboardAwareScrollViewCompat
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -40,13 +60,16 @@ export default function ProfileScreen() {
           <Text style={[styles.title, { color: colors.foreground }]}>Mon profil</Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Gérez vos informations personnelles.</Text>
         </View>
-        <Feather name="settings" size={21} color={colors.mutedForeground} />
+        <View style={styles.headerActions}>
+          <Image source={logo} style={[styles.headerAvatar, { borderColor: colors.border }]} />
+          <Feather name="settings" size={21} color={colors.mutedForeground} />
+        </View>
       </View>
 
       <View style={styles.identity}>
         <View style={[styles.avatarFrame, { borderColor: colors.border }]}>
-          <Image source={logo} style={styles.avatar} />
-          <Pressable testID="edit-avatar" onPress={() => Alert.alert('Photo de profil', 'La sélection depuis la galerie sera disponible dans la prochaine version.')} style={[styles.editAvatar, { backgroundColor: colors.primary }]}>
+          <Image source={profile.avatarUri ? { uri: profile.avatarUri } : logo} style={styles.avatar} />
+          <Pressable testID="edit-avatar" onPress={choosePhoto} style={[styles.editAvatar, { backgroundColor: colors.primary }]}>
             <Feather name="camera" size={13} color={colors.primaryForeground} />
           </Pressable>
         </View>
@@ -86,6 +109,21 @@ export default function ProfileScreen() {
         </View>
         <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
       </View>
+
+      <Pressable
+        testID="ai-settings-link"
+        onPress={() => router.push('/ai-settings')}
+        style={({ pressed }) => [styles.aiCard, { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.75 : 1 }]}
+      >
+        <View style={[styles.securityIcon, { backgroundColor: colors.purpleSoft }]}>
+          <Feather name="zap" size={18} color={colors.ai} />
+        </View>
+        <View style={styles.securityCopy}>
+          <Text style={[styles.securityTitle, { color: colors.foreground }]}>Paramètres IA</Text>
+          <Text style={[styles.securityText, { color: colors.mutedForeground }]}>Connectez votre propre clé Gemini.</Text>
+        </View>
+        <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+      </Pressable>
     </KeyboardAwareScrollViewCompat>
   );
 }
@@ -93,6 +131,8 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 22, marginBottom: 21 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  headerAvatar: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, padding: 2 },
   eyebrow: { fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 1.3, marginBottom: 7 },
   title: { fontSize: 28, fontFamily: 'Inter_700Bold', letterSpacing: -0.6 },
   subtitle: { fontSize: 13, fontFamily: 'Inter_400Regular', marginTop: 7 },
@@ -112,6 +152,7 @@ const styles = StyleSheet.create({
   saveButton: { minHeight: 48, borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 20 },
   saveText: { color: '#FFFFFF', fontSize: 13, fontFamily: 'Inter_700Bold' },
   securityCard: { borderWidth: 1, borderRadius: 18, marginHorizontal: 18, marginTop: 13, padding: 14, flexDirection: 'row', alignItems: 'center' },
+  aiCard: { borderWidth: 1, borderRadius: 18, marginHorizontal: 18, marginTop: 13, padding: 14, flexDirection: 'row', alignItems: 'center' },
   securityIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   securityCopy: { flex: 1, marginLeft: 11 },
   securityTitle: { fontSize: 13, fontFamily: 'Inter_700Bold' },

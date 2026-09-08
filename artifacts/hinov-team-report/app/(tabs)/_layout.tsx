@@ -33,6 +33,10 @@ function NativeTabLayout() {
         <NativeTabs.Trigger.Icon sf={{ default: 'person', selected: 'person.fill' }} />
         <NativeTabs.Trigger.Label>Profil</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="ai-settings">
+        <NativeTabs.Trigger.Icon sf={{ default: 'sparkles', selected: 'sparkles' }} />
+        <NativeTabs.Trigger.Label>Paramètres IA</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
@@ -106,6 +110,13 @@ function ClassicTabLayout() {
         options={{
           title: 'Profil',
           tabBarIcon: ({ color }) => <Feather name="user" size={21} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="ai-settings"
+        options={{
+          title: 'Paramètres IA',
+          tabBarIcon: ({ color }) => <Feather name="zap" size={21} color={color} />,
         }}
       />
     </Tabs>
