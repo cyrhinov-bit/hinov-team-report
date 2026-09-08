@@ -9,18 +9,13 @@ import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { SymbolView } from 'expo-symbols';
 import { router } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
+import { useAppState } from '@/context/AppStateContext';
 
-// IMPORTANT: iOS 26 uses NativeTabs for native tabs with liquid glass support.
-// NativeTabs intentionally does NOT use custom design tokens — liquid glass
-// is a system-level appearance provided by iOS and cannot be overridden.
-// Custom brand colors are applied only on the ClassicTabLayout path (older iOS / Android / web).
-function NativeTabLayout() {
+function NativeTabLayout({ isAdmin }: { isAdmin: boolean }) {
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Icon
-          sf={{ default: 'house', selected: 'house.fill' }}
-        />
+        <NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} />
         <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="activities">
@@ -31,6 +26,12 @@ function NativeTabLayout() {
         <NativeTabs.Trigger.Icon sf={{ default: 'doc.text', selected: 'doc.text.fill' }} />
         <NativeTabs.Trigger.Label>Rapport</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
+      {isAdmin ? (
+        <NativeTabs.Trigger name="users">
+          <NativeTabs.Trigger.Icon sf={{ default: 'person.3', selected: 'person.3.fill' }} />
+          <NativeTabs.Trigger.Label>Équipe</NativeTabs.Trigger.Label>
+        </NativeTabs.Trigger>
+      ) : null}
       <NativeTabs.Trigger name="profile">
         <NativeTabs.Trigger.Icon sf={{ default: 'person', selected: 'person.fill' }} />
         <NativeTabs.Trigger.Label>Profil</NativeTabs.Trigger.Label>
@@ -43,7 +44,7 @@ function NativeTabLayout() {
   );
 }
 
-function ClassicTabLayout() {
+function ClassicTabLayout({ isAdmin }: { isAdmin: boolean }) {
   const colors = useColors();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -108,6 +109,14 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
+        name="users"
+        options={{
+          title: 'Équipe',
+          href: isAdmin ? '/users' : null,
+          tabBarIcon: ({ color }) => <Feather name="users" size={21} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profil',
@@ -127,6 +136,11 @@ function ClassicTabLayout() {
 
 export default function TabLayout() {
   const { token, isHydrated } = useAuth();
+  const { profile } = useAppState();
+
+  const isAdmin =
+    profile.role?.toUpperCase() === 'SUPERADMIN' ||
+    profile.role?.toUpperCase() === 'ADMIN';
 
   useEffect(() => {
     if (isHydrated && !token) router.replace('/login');
@@ -134,7 +148,7 @@ export default function TabLayout() {
 
   if (!isHydrated || !token) return null;
   if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
+    return <NativeTabLayout isAdmin={isAdmin} />;
   }
-  return <ClassicTabLayout />;
+  return <ClassicTabLayout isAdmin={isAdmin} />;
 }

@@ -1,5 +1,4 @@
 import React, { useEffect } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -18,8 +17,6 @@ import { AuthProvider } from '@/context/AuthContext';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
-
-const queryClient = new QueryClient();
 
 function RootLayoutNav() {
   return (
@@ -49,17 +46,15 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ErrorBoundary>
-        <QueryClientProvider client={queryClient}>
-          <GestureHandlerRootView>
-            <KeyboardProvider>
-              <AuthProvider>
-                <AppStateProvider>
-                  <RootLayoutNav />
-                </AppStateProvider>
-              </AuthProvider>
-            </KeyboardProvider>
-          </GestureHandlerRootView>
-        </QueryClientProvider>
+        <GestureHandlerRootView>
+          <KeyboardProvider>
+            <AuthProvider>
+              <AppStateProvider>
+                <RootLayoutNav />
+              </AppStateProvider>
+            </AuthProvider>
+          </KeyboardProvider>
+        </GestureHandlerRootView>
       </ErrorBoundary>
     </SafeAreaProvider>
   );

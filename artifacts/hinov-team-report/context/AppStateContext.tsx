@@ -129,7 +129,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       hasGeminiApiKey,
       isHydrated,
       addActivity: (activity) => {
-        const temporaryId = `pending-${Date.now()}`;
+        const temporaryId = `pending-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         setActivities((current) => [{ ...activity, id: temporaryId }, ...current]);
         if (!token) return;
         apiRequest<ApiActivity>('/api/activities', {
@@ -153,18 +153,26 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             method: 'PATCH',
             token,
             body: {
-              ...(nextActivity.date ? { activity_date: nextActivity.date } : {}),
-              ...(nextActivity.title ? { title: nextActivity.title } : {}),
+              ...(nextActivity.date !== undefined ? { activity_date: nextActivity.date } : {}),
+              ...(nextActivity.title !== undefined ? { title: nextActivity.title } : {}),
               ...(nextActivity.description !== undefined ? { description: nextActivity.description } : {}),
-              ...(nextActivity.category ? { category: nextActivity.category } : {}),
-              ...(nextActivity.status ? { status: nextActivity.status } : {}),
+              ...(nextActivity.category !== undefined ? { category: nextActivity.category } : {}),
+              ...(nextActivity.status !== undefined ? { status: nextActivity.status } : {}),
             },
           }).catch(() => undefined);
         }
       },
       deleteActivity: (id) => {
+        const deletedActivity = activities.find((item) => item.id === id);
         setActivities((current) => current.filter((item) => item.id !== id));
-        if (token) apiRequest(`/api/activities/${id}`, { method: 'DELETE', token }).catch(() => undefined);
+        if (token) {
+          apiRequest(`/api/activities/${id}`, { method: 'DELETE', token })
+            .catch(() => {
+              if (deletedActivity) {
+                setActivities((current) => [deletedActivity, ...current]);
+              }
+            });
+        }
       },
       updateProfile: (nextProfile) => {
         setProfile((current) => ({ ...current, ...nextProfile }));
@@ -176,6 +184,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
               ...(nextProfile.fullName !== undefined ? { full_name: nextProfile.fullName } : {}),
               ...(nextProfile.department !== undefined ? { department: nextProfile.department } : {}),
               ...(nextProfile.avatarUri !== undefined ? { avatar_url: nextProfile.avatarUri } : {}),
+              ...(nextProfile.role !== undefined ? { role: nextProfile.role } : {}),
             },
           }).catch(() => undefined);
         }

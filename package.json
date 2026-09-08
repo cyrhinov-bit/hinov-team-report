@@ -3,17 +3,34 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
+    "dev": "pnpm --filter @workspace/hinov-team-report dev",
+    "dev:clean": "pnpm --filter @workspace/hinov-team-report dev -- -c",
+    "dev:app": "pnpm --filter @workspace/hinov-team-report dev",
+    "dev:api": "pnpm --filter @workspace/api-server dev",
+    "dev:mockup": "pnpm --filter @workspace/mockup-sandbox dev",
+    "start": "pnpm --filter @workspace/hinov-team-report start",
+    "start:clean": "pnpm --filter @workspace/hinov-team-report start -c",
+    "web": "pnpm --filter @workspace/hinov-team-report web",
+    "web:clean": "pnpm --filter @workspace/hinov-team-report web -- -c",
+    "android": "pnpm --filter @workspace/hinov-team-report android",
+    "ios": "pnpm --filter @workspace/hinov-team-report ios",
+    "tunnel": "pnpm --filter @workspace/hinov-team-report start --tunnel",
+    "tunnel:clean": "pnpm --filter @workspace/hinov-team-report start --tunnel -c",
+    "create-admin": "pnpm --filter @workspace/scripts create-admin",
+    "build:apk": "cd artifacts/hinov-team-report && npx eas-cli build -p android --profile preview",
+    "build:ios": "cd artifacts/hinov-team-report && npx eas-cli build -p ios --profile preview",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },
   "private": true,
-  "dependencies": {
-    "@replit/connectors-sdk": "^0.4.1"
-  },
   "devDependencies": {
     "prettier": "^3.9.6",
     "typescript": "~5.9.3"
+  },
+  "dependencies": {
+    "expo": "~57.0.21",
+    "react": "19.2.3",
+    "react-native": "0.86.3"
   }
 }

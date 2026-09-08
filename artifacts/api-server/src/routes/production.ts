@@ -23,6 +23,25 @@ router.post("/auth/login", async (req, res) => {
   res.json(payload);
 });
 
+router.post("/auth/refresh", async (req, res) => {
+  const refreshToken = typeof req.body?.refreshToken === "string" ? req.body.refreshToken.trim() : "";
+  if (!refreshToken) {
+    res.status(400).json({ message: "Refresh token requis." });
+    return;
+  }
+
+  const response = await supabaseRequest("/auth/v1/token?grant_type=refresh_token", {
+    method: "POST",
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+  const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!response.ok) {
+    res.status(response.status === 400 ? 401 : 502).json({ message: "Échec du rafraîchissement de la session.", detail: payload });
+    return;
+  }
+  res.json(payload);
+});
+
 router.get("/auth/me", async (req, res) => {
   const user = await getSupabaseUser(req);
   if (!user) {
@@ -65,6 +84,16 @@ router.post("/activities", async (req, res) => {
     res.status(400).json({ message: "Date et titre requis." });
     return;
   }
+  if (typeof activity_date === "string" && !/^\d{4}-\d{2}-\d{2}$/.test(activity_date)) {
+    res.status(400).json({ message: "Format de date invalide. Utilisez AAAA-MM-JJ." });
+    return;
+  }
+  const allowedStatuses = ["Terminée", "En cours", "En attente"];
+  const allowedCategories = ["Coordination", "Clients", "Production", "Administration"];
+  const safeTitle = typeof title === "string" ? title.trim().slice(0, 200) : "";
+  const safeDescription = typeof description === "string" ? description.trim().slice(0, 2000) : "";
+  const safeCategory = typeof category === "string" && allowedCategories.includes(category) ? category : "Coordination";
+  const safeStatus = typeof status === "string" && allowedStatuses.includes(status) ? status : "En cours";
   const response = await supabaseRequest("/rest/v1/activities", {
     method: "POST",
     headers: {
@@ -74,15 +103,15 @@ router.post("/activities", async (req, res) => {
     body: JSON.stringify({
       user_id: user.id,
       activity_date,
-      title,
-      description: description ?? "",
-      category: category ?? "Coordination",
-      status: status ?? "En cours",
+      title: safeTitle,
+      description: safeDescription,
+      category: safeCategory,
+      status: safeStatus,
     }),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    res.status(502).json({ message: "Impossible d’enregistrer l’activité.", detail: payload });
+    res.status(502).json({ message: "Impossible d'enregistrer l'activité.", detail: payload });
     return;
   }
   res.status(201).json(Array.isArray(payload) ? payload[0] : payload);
@@ -144,11 +173,15 @@ router.patch("/profile", async (req, res) => {
     res.status(401).json({ message: "Session invalide ou expirée." });
     return;
   }
+  const allowedRoles = ["COLLABORATEUR", "ADMIN", "SUPERADMIN"];
+  const rawRole = typeof req.body?.role === "string" ? req.body.role.trim().toUpperCase() : undefined;
+  const safeRole = rawRole && allowedRoles.includes(rawRole) ? rawRole : undefined;
   const updates = Object.fromEntries(
     ["full_name", "department", "avatar_url"]
       .filter((key) => req.body?.[key] !== undefined)
       .map((key) => [key, req.body[key]]),
   );
+  if (safeRole) updates.role = safeRole;
   if (!Object.keys(updates).length) {
     res.status(400).json({ message: "Aucune modification fournie." });
     return;
@@ -240,6 +273,10 @@ router.get("/reports", async (req, res) => {
     return;
   }
   const weekStart = typeof req.query.week_start === "string" ? req.query.week_start : "";
+  if (weekStart && !/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) {
+    res.status(400).json({ message: "Format de date invalide pour week_start." });
+    return;
+  }
   const filter = weekStart ? `&week_start=eq.${encodeURIComponent(weekStart)}` : "";
   const response = await supabaseRequest(
     `/rest/v1/weekly_reports?user_id=eq.${encodeURIComponent(user.id)}${filter}&select=id,week_start,difficulties,perspectives,improved_difficulties,improved_perspectives,status`,
@@ -262,6 +299,10 @@ router.post("/reports", async (req, res) => {
   const { week_start, difficulties, perspectives, improved_difficulties, improved_perspectives, status } = req.body ?? {};
   if (!week_start) {
     res.status(400).json({ message: "Semaine du rapport requise." });
+    return;
+  }
+  if (typeof week_start === "string" && !/^\d{4}-\d{2}-\d{2}$/.test(week_start)) {
+    res.status(400).json({ message: "Format de date invalide pour week_start." });
     return;
   }
   const response = await supabaseRequest("/rest/v1/weekly_reports", {
@@ -331,7 +372,13 @@ router.post("/reports/improve", async (req, res) => {
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          response_mime_type: "application/json",
+          temperature: 0.3,
+        },
+      }),
     },
   );
   const geminiPayload = await geminiResponse.json().catch(() => ({})) as {

@@ -6,6 +6,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppState } from '@/context/AppStateContext';
 import { useColors } from '@/hooks/useColors';
+import { getCurrentWeekRange } from '@/lib/constants';
 
 const logo = require('@/assets/images/htr-logo.jpeg');
 
@@ -21,140 +22,236 @@ export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { activities, profile } = useAppState();
-  const today = new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const todayCount = activities.filter((activity) => activity.date === today).length;
-  const activeDays = new Set(activities.map((activity) => activity.date)).size;
-  const firstName = profile.fullName.split(' ')[0];
+
+  const weekRange = getCurrentWeekRange();
+  const weekStart = weekRange.start;
+  const weekEnd = weekRange.end;
+  const weekStartDate = new Date(`${weekStart}T12:00:00`);
+
+  const weekActivities = activities.filter((activity) => activity.date >= weekStart && activity.date <= weekEnd);
+  const activeDays = new Set(weekActivities.map((activity) => activity.date)).size;
+  const firstName = profile.fullName ? profile.fullName.split(' ')[0] : 'Collaborateur';
+
+  const isSuperAdmin = profile.role?.toUpperCase() === 'SUPERADMIN';
+  const isAdmin = isSuperAdmin || profile.role?.toUpperCase() === 'ADMIN';
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={{
-        paddingTop: insets.top + 18,
-        paddingBottom: insets.bottom + 112,
-      }}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.topRow}>
-        <View>
-          <Text style={[styles.eyebrow, { color: colors.primary }]}>ESPACE PERSONNEL</Text>
-          <Text style={[styles.greeting, { color: colors.foreground }]}>Bonjour, {firstName}</Text>
-          <Text style={[styles.date, { color: colors.mutedForeground }]}>{formatToday()}</Text>
-        </View>
-        <Pressable
-          testID="profile-button"
-          onPress={() => router.push('/profile')}
-          style={({ pressed }) => [styles.avatarButton, { opacity: pressed ? 0.7 : 1 }]}
-        >
-          <Image source={profile.avatarUri ? { uri: profile.avatarUri } : logo} style={styles.avatarImage} />
-        </Pressable>
-      </View>
-
-      <LinearGradient
-        colors={[colors.navy, '#1C4E82']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.hero}
+    <View style={[styles.screen, { backgroundColor: colors.background }]}>
+      <ScrollView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        contentContainerStyle={{
+          paddingTop: insets.top + 18,
+          paddingBottom: insets.bottom + 120,
+        }}
+        showsVerticalScrollIndicator={false}
       >
-        <View style={styles.heroOrb} />
-        <View style={styles.heroCopy}>
-          <View style={styles.heroBadge}>
-            <Feather name="bar-chart-2" size={13} color={colors.warning} />
-            <Text style={styles.heroBadgeText}>SUIVI HEBDOMADAIRE</Text>
+        <View style={styles.topRow}>
+          <View>
+            <View style={styles.roleHeaderRow}>
+              {isAdmin ? <Feather name="shield" size={11} color={isSuperAdmin ? colors.warning : colors.primary} /> : null}
+              <Text
+                style={[
+                  styles.eyebrow,
+                  { color: isSuperAdmin ? colors.warning : colors.primary },
+                ]}
+              >
+                {isSuperAdmin ? 'SUPERADMINISTRATION' : isAdmin ? 'ADMINISTRATION' : 'ESPACE PERSONNEL'}
+              </Text>
+            </View>
+            <Text style={[styles.greeting, { color: colors.foreground }]}>Bonjour, {firstName}</Text>
+            <Text style={[styles.date, { color: colors.mutedForeground }]}>{formatToday()}</Text>
           </View>
-          <Text style={styles.heroTitle}>Votre semaine,{"\n"}en un coup d’œil.</Text>
-          <Text style={styles.heroCaption}>Gardez le fil de vos avancées et préparez un rapport qui vous ressemble.</Text>
+          <Pressable
+            testID="profile-button"
+            onPress={() => router.push('/profile')}
+            style={({ pressed }) => [styles.avatarButton, { opacity: pressed ? 0.7 : 1 }]}
+          >
+            <Image source={profile.avatarUri ? { uri: profile.avatarUri } : logo} style={styles.avatarImage} />
+          </Pressable>
         </View>
-        <View style={styles.heroRing}>
-          <Text style={styles.heroRingNumber}>{activeDays}</Text>
-          <Text style={styles.heroRingLabel}>jours actifs</Text>
-        </View>
-      </LinearGradient>
 
-      <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Aujourd’hui</Text>
-        <Pressable onPress={() => router.push('/activities')} testID="see-activities">
-          <Text style={[styles.link, { color: colors.primary }]}>Voir tout</Text>
-        </Pressable>
-      </View>
+        {/* Admin Quick Action Banner */}
+        {isAdmin ? (
+          <Pressable
+            testID="admin-team-banner"
+            onPress={() => router.push('/users')}
+            style={({ pressed }) => [
+              styles.adminBanner,
+              { backgroundColor: colors.card, borderColor: isSuperAdmin ? colors.warning : colors.primary, opacity: pressed ? 0.8 : 1 },
+            ]}
+          >
+            <View style={[styles.adminBannerIcon, { backgroundColor: isSuperAdmin ? colors.orangeSoft : colors.blueSoft }]}>
+              <Feather name="users" size={20} color={isSuperAdmin ? colors.warning : colors.primary} />
+            </View>
+            <View style={styles.adminBannerCopy}>
+              <Text style={[styles.adminBannerTitle, { color: colors.foreground }]}>Gestion de l'équipe HINOV</Text>
+              <Text style={[styles.adminBannerSubtitle, { color: colors.mutedForeground }]}>
+                {isSuperAdmin ? 'Supervisez tous les collaborateurs, rôles et permissions' : 'Consultez les membres de votre équipe'}
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+          </Pressable>
+        ) : null}
 
-      <View style={styles.statsRow}>
-        <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={[styles.statIcon, { backgroundColor: colors.blueSoft }]}>
-            <Feather name="activity" size={18} color={colors.primary} />
+        <LinearGradient
+          colors={[colors.navy, '#1C4E82']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.hero}
+        >
+          <View style={styles.heroOrb} />
+          <View style={styles.heroCopy}>
+            <View style={styles.heroBadge}>
+              <Feather name="bar-chart-2" size={13} color={colors.warning} />
+              <Text style={styles.heroBadgeText}>SUIVI HEBDOMADAIRE</Text>
+            </View>
+            <Text style={styles.heroTitle}>Votre semaine,{"\n"}en un coup d’œil.</Text>
+            <Text style={styles.heroCaption}>Gardez le fil de vos avancées et préparez un rapport qui vous ressemble.</Text>
           </View>
-          <Text style={[styles.statNumber, { color: colors.foreground }]}>{todayCount}</Text>
-          <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>activité{todayCount > 1 ? 's' : ''}</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={[styles.statIcon, { backgroundColor: colors.greenSoft }]}>
-            <Feather name="trending-up" size={18} color={colors.success} />
+          <View style={styles.heroRing}>
+            <Text style={styles.heroRingNumber}>{activeDays}</Text>
+            <Text style={styles.heroRingLabel}>jours actifs</Text>
           </View>
-          <Text style={[styles.statNumber, { color: colors.foreground }]}>{activeDays}/5</Text>
-          <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>jours suivis</Text>
-        </View>
-      </View>
+        </LinearGradient>
 
-      <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Progression</Text>
-        <Text style={[styles.weekLabel, { color: colors.mutedForeground }]}>Cette semaine</Text>
-      </View>
-      <View style={[styles.progressCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={styles.progressTop}>
-          <Text style={[styles.progressTitle, { color: colors.foreground }]}>Votre rythme</Text>
-          <Text style={[styles.progressPercent, { color: colors.success }]}>{Math.min(activeDays * 20, 100)}%</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Aujourd’hui</Text>
+          <Pressable onPress={() => router.push('/activities')} testID="see-activities">
+            <Text style={[styles.link, { color: colors.primary }]}>Voir tout</Text>
+          </Pressable>
         </View>
-        <View style={styles.daysRow}>
-          {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven'].map((day, index) => {
-            const active = index < activeDays;
-            return (
-              <View key={day} style={styles.dayItem}>
-                <View style={[styles.dayDot, { backgroundColor: active ? colors.success : colors.muted }]}>
-                  {active ? <Feather name="check" size={13} color={colors.card} /> : null}
+
+        <View style={styles.statsRow}>
+          <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.statIcon, { backgroundColor: colors.blueSoft }]}>
+              <Feather name="activity" size={18} color={colors.primary} />
+            </View>
+            <Text style={[styles.statNumber, { color: colors.foreground }]}>{todayCount}</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>activité{todayCount > 1 ? 's' : ''}</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.statIcon, { backgroundColor: colors.greenSoft }]}>
+              <Feather name="trending-up" size={18} color={colors.success} />
+            </View>
+            <Text style={[styles.statNumber, { color: colors.foreground }]}>{activeDays}/5</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>jours suivis</Text>
+          </View>
+        </View>
+
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Progression</Text>
+          <Text style={[styles.weekLabel, { color: colors.mutedForeground }]}>Cette semaine</Text>
+        </View>
+        <View style={[styles.progressCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.progressTop}>
+            <Text style={[styles.progressTitle, { color: colors.foreground }]}>Votre rythme</Text>
+            <Text style={[styles.progressPercent, { color: colors.success }]}>{Math.min(activeDays * 20, 100)}%</Text>
+          </View>
+          <View style={styles.daysRow}>
+            {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven'].map((day, index) => {
+              const dayDate = new Date(weekStartDate);
+              dayDate.setDate(dayDate.getDate() + index);
+              const dayStr = `${dayDate.getFullYear()}-${String(dayDate.getMonth() + 1).padStart(2, '0')}-${String(dayDate.getDate()).padStart(2, '0')}`;
+              const active = weekActivities.some((a) => a.date === dayStr);
+              return (
+                <View key={day} style={styles.dayItem}>
+                  <View style={[styles.dayDot, { backgroundColor: active ? colors.success : colors.muted }]}>
+                    {active ? <Feather name="check" size={13} color={colors.card} /> : null}
+                  </View>
+                  <Text style={[styles.dayLabel, { color: active ? colors.foreground : colors.mutedForeground }]}>{day}</Text>
                 </View>
-                <Text style={[styles.dayLabel, { color: active ? colors.foreground : colors.mutedForeground }]}>{day}</Text>
-              </View>
-            );
-          })}
+              );
+            })}
+          </View>
         </View>
-      </View>
 
-      <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Actions rapides</Text>
-      </View>
-      <View style={styles.actionsRow}>
-        <Pressable
-          testID="add-activity"
-          onPress={() => router.push('/activities')}
-          style={({ pressed }) => [styles.actionCard, { backgroundColor: colors.blueSoft, opacity: pressed ? 0.75 : 1 }]}
-        >
-          <Feather name="plus" size={22} color={colors.primary} />
-          <Text style={[styles.actionTitle, { color: colors.navy }]}>Ajouter une{"\n"}activité</Text>
-          <Feather name="arrow-up-right" size={16} color={colors.primary} style={styles.actionArrow} />
-        </Pressable>
-        <Pressable
-          testID="prepare-report"
-          onPress={() => router.push('/report')}
-          style={({ pressed }) => [styles.actionCard, { backgroundColor: colors.purpleSoft, opacity: pressed ? 0.75 : 1 }]}
-        >
-          <Feather name="file-text" size={20} color={colors.ai} />
-          <Text style={[styles.actionTitle, { color: colors.navy }]}>Préparer mon{"\n"}rapport</Text>
-          <Feather name="arrow-up-right" size={16} color={colors.ai} style={styles.actionArrow} />
-        </Pressable>
-      </View>
-      <Text style={[styles.footerNote, { color: colors.mutedForeground }]}>Votre rapport reste individuel et confidentiel.</Text>
-    </ScrollView>
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Actions rapides</Text>
+        </View>
+        <View style={styles.actionsRow}>
+          <Pressable
+            testID="add-activity"
+            onPress={() => router.push({ pathname: '/activities', params: { openAdd: 'true' } })}
+            style={({ pressed }) => [styles.actionCard, { backgroundColor: colors.blueSoft, opacity: pressed ? 0.75 : 1 }]}
+          >
+            <Feather name="plus" size={22} color={colors.primary} />
+            <Text style={[styles.actionTitle, { color: colors.navy }]}>Ajouter une{"\n"}activité</Text>
+            <Feather name="arrow-up-right" size={16} color={colors.primary} style={styles.actionArrow} />
+          </Pressable>
+          <Pressable
+            testID="prepare-report"
+            onPress={() => router.push('/report')}
+            style={({ pressed }) => [styles.actionCard, { backgroundColor: colors.purpleSoft, opacity: pressed ? 0.75 : 1 }]}
+          >
+            <Feather name="file-text" size={20} color={colors.ai} />
+            <Text style={[styles.actionTitle, { color: colors.navy }]}>Préparer mon{"\n"}rapport</Text>
+            <Feather name="arrow-up-right" size={16} color={colors.ai} style={styles.actionArrow} />
+          </Pressable>
+        </View>
+        <Text style={[styles.footerNote, { color: colors.mutedForeground }]}>Votre rapport reste individuel et confidentiel.</Text>
+      </ScrollView>
+
+      {/* Bouton d'action flottant (FAB) - Ajouter une activité */}
+      <Pressable
+        testID="home-fab-add"
+        accessibilityLabel="Ajouter une activité"
+        onPress={() => router.push({ pathname: '/activities', params: { openAdd: 'true' } })}
+        style={({ pressed }) => [
+          styles.fab,
+          {
+            backgroundColor: colors.primary,
+            bottom: insets.bottom + 88,
+            opacity: pressed ? 0.85 : 1,
+          },
+        ]}
+      >
+        <Feather name="plus" size={26} color={colors.primaryForeground} />
+      </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1 },
   container: { flex: 1 },
-  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 22, marginBottom: 22 },
-  eyebrow: { fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 1.5, marginBottom: 7 },
+  fab: {
+    position: 'absolute',
+    right: 22,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 22, marginBottom: 16 },
+  roleHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 5 },
+  eyebrow: { fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 1.5 },
   greeting: { fontSize: 28, fontFamily: 'Inter_700Bold', letterSpacing: -0.7 },
   date: { fontSize: 13, fontFamily: 'Inter_400Regular', marginTop: 6, textTransform: 'capitalize' },
   avatarButton: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#fff', padding: 3, borderWidth: 1, borderColor: '#DDE6F0' },
   avatarImage: { width: '100%', height: '100%', borderRadius: 20 },
+  adminBanner: {
+    marginHorizontal: 18,
+    marginBottom: 16,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  adminBannerIcon: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  adminBannerCopy: { flex: 1 },
+  adminBannerTitle: { fontSize: 14, fontFamily: 'Inter_700Bold' },
+  adminBannerSubtitle: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
   hero: { minHeight: 182, marginHorizontal: 18, borderRadius: 24, padding: 22, overflow: 'hidden', flexDirection: 'row', justifyContent: 'space-between' },
   heroOrb: { position: 'absolute', width: 185, height: 185, borderRadius: 100, right: -54, top: -70, backgroundColor: 'rgba(255,255,255,0.08)' },
   heroCopy: { flex: 1, paddingRight: 8 },

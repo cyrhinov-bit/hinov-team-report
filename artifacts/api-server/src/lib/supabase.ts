@@ -1,20 +1,28 @@
-import { ReplitConnectors } from "@replit/connectors-sdk";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import type { Request } from "express";
 
-const connector = new ReplitConnectors();
+const supabaseUrl = (process.env.SUPABASE_URL || "http://127.0.0.1:54321").replace(/\/+$/, "");
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || "";
 
 export async function supabaseRequest(
   path: string,
   options: { method?: string; headers?: Record<string, string>; body?: string } = {},
 ) {
-  return connector.proxy("supabase", path, {
+  const url = `${supabaseUrl}${path.startsWith("/") ? path : `/${path}`}`;
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    ...(supabaseAnonKey ? { apikey: supabaseAnonKey } : {}),
+    ...(options.body ? { "Content-Type": "application/json" } : {}),
+    ...(options.headers ?? {}),
+  };
+
+  if (!headers.Authorization && !headers.authorization && supabaseAnonKey) {
+    headers.Authorization = `Bearer ${supabaseAnonKey}`;
+  }
+
+  return fetch(url, {
     method: options.method ?? "GET",
-    headers: {
-      Accept: "application/json",
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
-      ...(options.headers ?? {}),
-    },
+    headers,
     body: options.body,
   });
 }
@@ -35,8 +43,7 @@ export async function getSupabaseUser(req: Request) {
 }
 
 function getEncryptionKey() {
-  const secret = process.env.SESSION_SECRET;
-  if (!secret) throw new Error("SESSION_SECRET is required for API key encryption.");
+  const secret = process.env.SESSION_SECRET || process.env.ENCRYPTION_SECRET || "hinov-team-report-default-secret-key-32b";
   return createHash("sha256").update(secret).digest();
 }
 
