@@ -1,0 +1,1117 @@
+# ====================================================
+# PROJET : HINOV TEAM REPORT (HTR)
+# ====================================================
+
+Tu es un développeur Full Stack Senior spécialisé en :
+
+- React Native
+- Expo
+- TypeScript
+- Expo Router
+- Supabase
+- PostgreSQL
+- Supabase Auth
+- Supabase Storage
+- Supabase Edge Functions
+- Row Level Security (RLS)
+- Google Gemini API
+- Microsoft Graph API
+- Génération de PDF
+- Architecture mobile
+- UI/UX professionnelle
+- Sécurité applicative
+
+Ta mission est de concevoir et développer une application mobile professionnelle complète appelée :
+
+HINOV TEAM REPORT
+
+Abréviation : HTR
+
+
+# ====================================================
+# 1. OBJECTIF DE L'APPLICATION
+# ====================================================
+
+Hinov Team Report (HTR) est une application mobile interne destinée aux collaborateurs de HINOV Group.
+
+L'objectif est de digitaliser, simplifier et automatiser la production des rapports hebdomadaires d'activité.
+
+Chaque utilisateur doit pouvoir :
+
+1. Enregistrer quotidiennement ses tâches et activités réalisées.
+2. Organiser automatiquement ses activités par jour.
+3. Préparer son rapport hebdomadaire.
+4. Ajouter les difficultés rencontrées.
+5. Ajouter les perspectives et priorités de la semaine suivante.
+6. Utiliser Gemini AI pour améliorer la rédaction.
+7. Modifier le contenu proposé par l'intelligence artificielle.
+8. Prévisualiser son rapport.
+9. Générer un PDF professionnel.
+10. Intégrer automatiquement sa photo de profil dans son rapport PDF.
+11. Archiver automatiquement son rapport.
+12. Envoyer automatiquement le PDF au Directeur via Outlook.
+13. Consulter l'historique de ses anciens rapports.
+14. Modifier ses informations personnelles.
+15. Modifier son mot de passe depuis son interface.
+
+IMPORTANT :
+
+Chaque utilisateur produit son propre rapport individuel.
+
+Il ne doit jamais y avoir un PDF regroupant plusieurs collaborateurs.
+
+Chaque rapport correspond à un seul collaborateur et à une seule semaine.
+
+
+# ====================================================
+# 2. STRUCTURE DES UTILISATEURS ET RÔLES
+# ====================================================
+
+L'application possède trois rôles système.
+
+----------------------------------------------------
+1. COLLABORATEUR
+----------------------------------------------------
+
+Le collaborateur possède uniquement un espace personnel.
+
+Il peut :
+
+- Se connecter.
+- Consulter son dashboard.
+- Ajouter ses activités quotidiennes.
+- Modifier ses activités.
+- Supprimer ses activités.
+- Consulter ses activités par jour.
+- Consulter ses activités par semaine.
+- Préparer son rapport hebdomadaire.
+- Ajouter ses difficultés.
+- Ajouter ses perspectives.
+- Utiliser Gemini AI.
+- Modifier le résultat généré par Gemini.
+- Prévisualiser son rapport.
+- Générer son PDF.
+- Soumettre son rapport.
+- Consulter son historique.
+- Visualiser ses PDF.
+- Télécharger ses PDF.
+- Modifier son profil.
+- Ajouter/modifier sa photo.
+- Configurer sa propre clé API Gemini.
+- Modifier son mot de passe.
+- Gérer ses notifications.
+
+Le collaborateur ne peut pas :
+
+- Voir les activités des autres.
+- Voir les rapports des autres.
+- Gérer les utilisateurs.
+- Accéder à l'administration.
+- Voir les clés API des autres utilisateurs.
+- Modifier les rôles.
+
+
+----------------------------------------------------
+2. DIRECTEUR / ADMIN
+----------------------------------------------------
+
+Le Directeur possède deux espaces.
+
+A. MON ESPACE
+
+Le Directeur utilise également HTR comme un collaborateur normal.
+
+Il peut :
+
+- Ajouter ses propres activités.
+- Préparer son propre rapport.
+- Ajouter difficultés et perspectives.
+- Utiliser Gemini avec sa propre clé.
+- Prévisualiser son rapport.
+- Générer son PDF.
+- Consulter son historique.
+- Modifier son profil.
+- Ajouter/modifier sa photo.
+- Modifier son mot de passe.
+
+Son propre rapport :
+
+- Est généré en PDF.
+- Est archivé.
+- Est disponible dans son historique.
+- N'est pas envoyé automatiquement à lui-même.
+
+
+B. ADMINISTRATION
+
+Le Directeur possède également un espace administratif.
+
+Il peut :
+
+- Voir la liste des utilisateurs.
+- Créer des comptes collaborateurs.
+- Modifier les informations utilisateurs.
+- Modifier les emails utilisateurs.
+- Réinitialiser les mots de passe.
+- Créer un mot de passe temporaire.
+- Forcer un utilisateur à modifier son mot de passe.
+- Désactiver un compte.
+- Réactiver un compte.
+- Voir tous les rapports collaborateurs.
+- Voir les rapports soumis.
+- Voir les rapports en brouillon.
+- Identifier les rapports non soumis.
+- Télécharger les PDF.
+- Consulter le suivi hebdomadaire.
+- Consulter les statistiques.
+- Relancer les collaborateurs.
+- Gérer certains paramètres de l'entreprise.
+
+Le Directeur ne peut jamais :
+
+- Voir les mots de passe existants en clair.
+- Voir les clés Gemini en clair.
+- Modifier son propre rôle vers Super Admin.
+- Créer un Super Admin.
+- Supprimer ou rétrograder le dernier Super Admin.
+
+
+----------------------------------------------------
+3. SUPER ADMIN
+----------------------------------------------------
+
+Le Super Admin possède le niveau maximal d'administration.
+
+Cependant, il possède également son propre espace personnel et peut faire ses rapports comme n'importe quel collaborateur.
+
+A. MON ESPACE
+
+Le Super Admin peut :
+
+- Ajouter ses activités.
+- Préparer son rapport.
+- Utiliser Gemini.
+- Générer son PDF.
+- Consulter son historique.
+- Modifier son profil.
+- Ajouter/modifier sa photo.
+- Modifier son mot de passe.
+- Gérer ses paramètres Gemini.
+
+B. ADMINISTRATION COMPLÈTE
+
+Le Super Admin peut :
+
+- Créer des utilisateurs.
+- Modifier tous les utilisateurs.
+- Désactiver des comptes.
+- Réactiver des comptes.
+- Réinitialiser les mots de passe.
+- Définir un nouveau mot de passe temporaire.
+- Générer automatiquement un mot de passe temporaire sécurisé.
+- Forcer le changement de mot de passe à la prochaine connexion.
+- Modifier les rôles.
+- Créer des Directeur/Admin.
+- Créer des Super Admin.
+- Consulter tous les rapports.
+- Télécharger tous les PDF.
+- Gérer le Directeur.
+- Configurer les paramètres entreprise.
+- Configurer le logo.
+- Gérer les paramètres système.
+- Consulter les logs administratifs.
+- Gérer les notifications et rappels.
+- Gérer les destinataires des rapports.
+
+IMPORTANT :
+
+Le Super Admin ne doit jamais pouvoir consulter un ancien mot de passe
+personnel choisi par un utilisateur.
+
+Pour des raisons de sécurité, les mots de passe existants ne sont jamais
+stockés ni affichés en clair.
+
+Le Super Admin peut cependant créer ou définir un NOUVEAU mot de passe
+temporaire lorsqu'un collaborateur oublie son accès.
+
+Le nouveau mot de passe temporaire peut être affiché UNE SEULE FOIS
+immédiatement après sa création afin que le Super Admin puisse le
+communiquer au collaborateur.
+
+Après cette étape, il ne doit plus être récupérable.
+
+
+# ====================================================
+# 3. HIÉRARCHIE DES RAPPORTS
+# ====================================================
+
+La structure est volontairement simplifiée.
+
+Tous les collaborateurs envoient leur rapport hebdomadaire au Directeur.
+
+Structure :
+
+COLLABORATEURS
+      │
+      │ Rapport hebdomadaire individuel
+      │
+      ▼
+DIRECTEUR
+
+
+Le Directeur :
+
+- Reçoit automatiquement les rapports.
+- Reçoit les PDF dans Outlook.
+- Peut consulter les rapports dans HTR.
+- Peut télécharger les PDF.
+- Peut suivre les collaborateurs ayant soumis ou non leur rapport.
+
+
+IMPORTANT :
+
+Le rapport personnel du Directeur :
+
+- Est généré.
+- Est archivé.
+- Est disponible dans son historique.
+- N'est pas envoyé automatiquement à lui-même.
+
+
+Le Super Admin peut également générer son propre rapport.
+
+La destination du rapport du Super Admin doit être configurable.
+
+
+# ====================================================
+# 4. IDENTITÉ VISUELLE
+# ====================================================
+
+Toute l'application doit utiliser l'identité visuelle de HINOV Group et du logo HTR fourni.
+
+Utiliser les couleurs principales présentes dans l'identité visuelle HINOV Group.
+
+Définir des constantes centralisées :
+
+COLORS
+
+- primary
+- secondary
+- success
+- warning
+- ai
+- background
+- surface
+- textPrimary
+- textSecondary
+- border
+
+Utilisation recommandée :
+
+COULEUR PRINCIPALE HINOV :
+
+- Boutons principaux.
+- Navigation active.
+- Headers.
+- Liens.
+- Actions principales.
+
+ORANGE / COULEUR D'ATTENTION :
+
+- Alertes.
+- Rapports incomplets.
+- Éléments en attente.
+
+VERT :
+
+- Succès.
+- Rapport envoyé.
+- Validation.
+- Actions terminées.
+
+VIOLET / MAGENTA :
+
+Réservé principalement à :
+
+- Gemini AI.
+- Fonctionnalités intelligentes.
+- Suggestions IA.
+- Bouton améliorer avec IA.
+
+BLANC / NEUTRES :
+
+- Fonds.
+- Cartes.
+- Espaces de respiration.
+
+STYLE GLOBAL :
+
+L'application doit être :
+
+- Moderne.
+- Premium.
+- Corporate.
+- Épurée.
+- Minimaliste.
+- Professionnelle.
+- Mobile-first.
+- Rapide.
+- Intuitive.
+
+Utiliser :
+
+- Cartes modernes.
+- Coins arrondis.
+- Ombres légères.
+- Espaces généreux.
+- Hiérarchie visuelle claire.
+- Icônes modernes.
+- Animations subtiles.
+
+
+# ====================================================
+# 5. STACK TECHNIQUE
+# ====================================================
+
+FRONTEND MOBILE :
+
+React Native + Expo
+
+LANGAGE :
+
+TypeScript
+
+NAVIGATION :
+
+Expo Router
+
+BACKEND :
+
+Supabase
+
+AUTHENTIFICATION :
+
+Supabase Auth
+
+BASE DE DONNÉES :
+
+PostgreSQL
+
+SÉCURITÉ :
+
+Supabase Row Level Security
+
+BACKEND SERVERLESS :
+
+Supabase Edge Functions
+
+STOCKAGE :
+
+Supabase Storage
+
+INTELLIGENCE ARTIFICIELLE :
+
+Google Gemini API
+
+GÉNÉRATION PDF :
+
+Template HTML professionnel + moteur de génération PDF côté serveur
+
+EMAIL :
+
+Microsoft Graph API
+
+MESSAGERIE :
+
+Outlook professionnel de l'entreprise
+
+NOTIFICATIONS :
+
+Expo Push Notifications
+
+AUTOMATISATIONS :
+
+Supabase Cron + Edge Functions
+
+
+# ====================================================
+# 6. ARCHITECTURE GÉNÉRALE
+# ====================================================
+
+Architecture :
+
+UTILISATEUR
+      ↓
+APPLICATION HTR
+      ↓
+SUPABASE AUTH
+      ↓
+DATABASE
+      ↓
+EDGE FUNCTIONS
+      │
+      ├── GEMINI API
+      │
+      ├── PDF GENERATION
+      │
+      └── MICROSOFT GRAPH API
+              ↓
+        OUTLOOK ENTREPRISE
+
+
+IMPORTANT :
+
+L'application mobile ne doit jamais contenir :
+
+- service_role Supabase.
+- Microsoft client secret.
+- Tokens Microsoft sensibles.
+- Secrets système.
+- Credentials serveur.
+
+Toutes les opérations sensibles doivent passer par des Edge Functions.
+
+
+# ====================================================
+# 7. AUTHENTIFICATION
+# ====================================================
+
+Créer un système sécurisé.
+
+Écran de connexion :
+
+- Logo HTR.
+- Email professionnel.
+- Mot de passe.
+- Bouton connexion.
+- Mot de passe oublié.
+
+Workflow :
+
+LOGIN
+   ↓
+SUPABASE AUTH
+   ↓
+AUTHENTIFICATION
+   ↓
+RÉCUPÉRATION PROFIL
+   ↓
+VÉRIFICATION :
+
+- Compte actif ?
+- Première connexion ?
+- must_change_password ?
+
+SI COMPTE INACTIF :
+
+Accès refusé avec message approprié.
+
+
+SI must_change_password = true :
+
+Rediriger obligatoirement vers :
+
+MODIFIER MON MOT DE PASSE
+
+
+SI must_change_password = false :
+
+VÉRIFICATION DU RÔLE
+   ↓
+
+COLLABORATEUR → ESPACE PERSONNEL
+
+DIRECTEUR_ADMIN → ESPACE PERSONNEL + ADMINISTRATION
+
+SUPER_ADMIN → ESPACE PERSONNEL + ADMINISTRATION COMPLÈTE
+
+
+# ====================================================
+# 8. CRÉATION DES UTILISATEURS
+# ====================================================
+
+Les comptes utilisateurs sont créés uniquement par :
+
+- Le Directeur/Admin.
+- Le Super Admin.
+
+Le collaborateur ne peut pas créer son propre compte.
+
+Interface :
+
+CRÉER UN UTILISATEUR
+
+Nom complet
+
+Email professionnel
+
+Mot de passe temporaire
+
+Confirmer mot de passe
+
+Fonction
+
+Département
+
+Rôle
+
+- Collaborateur
+- Directeur/Admin
+- Super Admin (uniquement Super Admin)
+
+Statut :
+
+Actif / Inactif
+
+Option :
+
+☑ Forcer le changement de mot de passe à la première connexion
+
+Bouton :
+
+CRÉER LE COMPTE
+
+
+Workflow :
+
+ADMIN
+   ↓
+CRÉATION UTILISATEUR
+   ↓
+VALIDATION
+   ↓
+EDGE FUNCTION SÉCURISÉE
+   ↓
+SUPABASE AUTH ADMIN
+   ↓
+CRÉATION DU COMPTE
+   ↓
+GÉNÉRATION USER ID
+   ↓
+CRÉATION PROFILE
+   ↓
+ATTRIBUTION DU RÔLE
+   ↓
+must_change_password = true
+   ↓
+COMPTE CRÉÉ
+
+
+IMPORTANT :
+
+Le frontend ne doit jamais utiliser directement la clé service_role.
+
+
+# ====================================================
+# 9. GESTION DES UTILISATEURS
+# ====================================================
+
+Créer un module :
+
+👥 UTILISATEURS
+
+Accessible au Directeur/Admin et Super Admin.
+
+Liste :
+
+- Photo.
+- Nom complet.
+- Email.
+- Fonction.
+- Département.
+- Rôle.
+- Statut.
+- Dernière connexion.
+
+Fonctionnalités :
+
+- Rechercher un utilisateur.
+- Filtrer par rôle.
+- Filtrer par statut.
+- Créer un utilisateur.
+- Modifier un utilisateur.
+- Désactiver.
+- Réactiver.
+- Réinitialiser le mot de passe.
+
+
+Détail utilisateur :
+
+PHOTO
+
+NOM COMPLET
+
+EMAIL DE CONNEXION
+
+FONCTION
+
+DÉPARTEMENT
+
+RÔLE
+
+STATUT
+
+DATE DE CRÉATION
+
+DERNIÈRE CONNEXION
+
+
+IMPORTANT :
+
+L'administrateur peut voir l'email de connexion.
+
+L'administrateur ne peut jamais voir le mot de passe existant.
+
+À la place, il peut :
+
+- Définir un nouveau mot de passe temporaire.
+- Générer automatiquement un mot de passe temporaire sécurisé.
+- Envoyer un lien de réinitialisation si nécessaire.
+- Forcer le changement de mot de passe à la prochaine connexion.
+
+
+# ====================================================
+# 10. PREMIÈRE CONNEXION
+# ====================================================
+
+Lors de la création d'un nouveau compte :
+
+must_change_password = true
+
+
+Workflow :
+
+COMPTE CRÉÉ
+      ↓
+ADMIN COMMUNIQUE LE MOT DE PASSE TEMPORAIRE
+      ↓
+UTILISATEUR SE CONNECTE
+      ↓
+AUTHENTIFICATION
+      ↓
+must_change_password = true ?
+      ↓
+OUI
+      ↓
+BLOCAGE DE L'ACCÈS AU DASHBOARD
+      ↓
+ÉCRAN OBLIGATOIRE :
+
+MODIFIER VOTRE MOT DE PASSE
+      ↓
+SAISIE NOUVEAU MOT DE PASSE
+      ↓
+CONFIRMATION
+      ↓
+MISE À JOUR SUPABASE AUTH
+      ↓
+must_change_password = false
+      ↓
+COMPLÉTER LE PROFIL
+      ↓
+AJOUTER PHOTO
+      ↓
+CONFIGURATION GEMINI (OPTIONNELLE)
+      ↓
+DASHBOARD
+
+
+# ====================================================
+# 11. MODIFICATION DU MOT DE PASSE
+# ====================================================
+
+Chaque utilisateur doit pouvoir modifier son mot de passe depuis son interface personnelle.
+
+Créer une section :
+
+👤 MON PROFIL
+
+Puis :
+
+🔐 SÉCURITÉ
+
+
+Interface :
+
+MODIFIER MON MOT DE PASSE
+
+Mot de passe actuel
+
+[ **************** ]
+
+Nouveau mot de passe
+
+[ **************** ]
+
+Confirmer le nouveau mot de passe
+
+[ **************** ]
+
+[ ENREGISTRER ]
+
+
+Workflow :
+
+UTILISATEUR
+      ↓
+MON PROFIL
+      ↓
+SÉCURITÉ
+      ↓
+MODIFIER MON MOT DE PASSE
+      ↓
+VÉRIFICATION DU MOT DE PASSE ACTUEL
+      ↓
+SAISIE DU NOUVEAU MOT DE PASSE
+      ↓
+CONFIRMATION
+      ↓
+VALIDATION
+      ↓
+SUPABASE AUTH
+      ↓
+MOT DE PASSE MIS À JOUR
+      ↓
+MESSAGE DE CONFIRMATION
+
+
+RÈGLES DU MOT DE PASSE :
+
+Minimum :
+
+- 8 caractères.
+- Une majuscule.
+- Une minuscule.
+- Un chiffre.
+- Un caractère spécial.
+
+Afficher un indicateur de sécurité :
+
+🔴 Faible
+
+🟠 Moyen
+
+🟢 Fort
+
+
+IMPORTANT :
+
+Le mot de passe ne doit jamais être stocké dans une table personnalisée.
+
+Supabase Auth reste le seul système responsable du stockage sécurisé des mots de passe.
+
+
+# ====================================================
+# 12. RÉINITIALISATION DU MOT DE PASSE PAR ADMIN
+# ====================================================
+
+Lorsqu'un collaborateur oublie son mot de passe :
+
+SUPER ADMIN ou DIRECTEUR_ADMIN
+      ↓
+GESTION UTILISATEURS
+      ↓
+SÉLECTIONNER UTILISATEUR
+      ↓
+ACTION :
+
+RÉINITIALISER LE MOT DE PASSE
+      ↓
+CHOIX :
+
+1. Définir manuellement un mot de passe temporaire
+
+OU
+
+2. Générer automatiquement un mot de passe sécurisé
+      ↓
+VALIDATION
+      ↓
+EDGE FUNCTION SÉCURISÉE
+      ↓
+SUPABASE AUTH ADMIN
+      ↓
+MISE À JOUR DU MOT DE PASSE
+      ↓
+must_change_password = true
+      ↓
+AFFICHAGE UNIQUE DU NOUVEAU MOT DE PASSE
+      ↓
+ADMIN COMMUNIQUE LE MOT DE PASSE AU COLLABORATEUR
+      ↓
+UTILISATEUR SE CONNECTE
+      ↓
+CHANGEMENT OBLIGATOIRE DU MOT DE PASSE
+      ↓
+must_change_password = false
+      ↓
+ACCÈS NORMAL À L'APPLICATION
+
+
+IMPORTANT :
+
+Le nouveau mot de passe temporaire peut être affiché immédiatement après sa création.
+
+Il ne doit jamais être stocké en clair dans la base de données.
+
+Il ne doit jamais être récupérable ultérieurement.
+
+
+# ====================================================
+# 13. PHOTO DE PROFIL
+# ====================================================
+
+Chaque utilisateur doit pouvoir :
+
+- Prendre une photo.
+- Choisir une photo depuis la galerie.
+- Prévisualiser.
+- Compresser.
+- Modifier.
+- Supprimer.
+
+Workflow :
+
+UTILISATEUR
+      ↓
+MON PROFIL
+      ↓
+AJOUTER PHOTO
+      ↓
+CAMÉRA OU GALERIE
+      ↓
+COMPRESSION
+      ↓
+SUPABASE STORAGE
+      ↓
+AVATAR_URL
+      ↓
+MISE À JOUR PROFILE
+
+
+Structure :
+
+avatars/
+   user_id/
+      profile.jpg
+
+
+IMPORTANT :
+
+La photo doit automatiquement être utilisée dans le PDF.
+
+Si aucune photo n'existe :
+
+Utiliser un avatar professionnel par défaut.
+
+
+# ====================================================
+# 14. DASHBOARD COLLABORATEUR
+# ====================================================
+
+Le dashboard personnel doit afficher :
+
+Bonjour [Prénom] 👋
+
+Date actuelle.
+
+CARTES :
+
+ACTIVITÉS DU JOUR
+
+Nombre d'activités enregistrées.
+
+
+PROGRESSION DE LA SEMAINE
+
+Lundi ✓
+Mardi ✓
+Mercredi ✓
+Jeudi ○
+Vendredi ○
+
+
+MON RAPPORT
+
+Statut :
+
+- Brouillon.
+- À préparer.
+- Prêt.
+- Envoyé.
+
+
+Actions rapides :
+
++ Ajouter une activité
+
+📄 Préparer mon rapport
+
+
+# ====================================================
+# 15. DASHBOARD DIRECTEUR
+# ====================================================
+
+Le Directeur doit avoir un dashboard combinant :
+
+MON ESPACE
+
+et
+
+ADMINISTRATION.
+
+
+Afficher :
+
+MES ACTIVITÉS
+
+MON RAPPORT
+
+RAPPORTS COLLABORATEURS
+
+Exemple :
+
+18 / 22 rapports reçus
+
+STATUT :
+
+🟢 Reçus
+
+🟠 Brouillons
+
+🔴 Non soumis
+
+
+Actions :
+
+- Préparer mon rapport.
+- Consulter les rapports.
+- Gérer les utilisateurs.
+
+
+# ====================================================
+# 16. GESTION DES ACTIVITÉS QUOTIDIENNES
+# ====================================================
+
+Chaque utilisateur doit pouvoir enregistrer ses activités.
+
+Formulaire :
+
+- Date.
+- Titre.
+- Description.
+- Catégorie.
+- Statut.
+
+Statuts :
+
+- Terminée.
+- En cours.
+- En attente.
+
+
+Fonctionnalités :
+
+- Ajouter.
+- Modifier.
+- Supprimer.
+- Consulter par jour.
+- Consulter par semaine.
+
+
+Workflow :
+
+AJOUT ACTIVITÉ
+      ↓
+VALIDATION
+      ↓
+SUPABASE
+      ↓
+ACTIVITÉ DISPONIBLE POUR RAPPORT
+
+
+IMPORTANT :
+
+Une activité déjà intégrée dans un rapport définitivement soumis doit être protégée afin que les modifications ultérieures ne changent jamais l'historique du rapport.
+
+
+# ====================================================
+# 17. CRÉATION DU RAPPORT HEBDOMADAIRE
+# ====================================================
+
+Lorsque l'utilisateur ouvre :
+
+MON RAPPORT
+
+L'application doit :
+
+1. Identifier automatiquement la semaine en cours.
+2. Calculer automatiquement la période.
+3. Récupérer les activités concernées.
+4. Organiser automatiquement les activités par jour.
+5. Générer un brouillon.
+6. Permettre la modification manuelle.
+
+Workflow :
+
+MON RAPPORT
+      ↓
+DÉTECTION SEMAINE
+      ↓
+RÉCUPÉRATION ACTIVITÉS
+      ↓
+CLASSEMENT PAR JOUR
+      ↓
+BROUILLON
+
+
+# ====================================================
+# 18. ACTIVITÉS PAR JOUR
+# ====================================================
+
+Le rapport doit impérativement conserver la structure par jour.
+
+Exemple :
+
+LUNDI
+
+- Réunion avec l'équipe commerciale.
+- Analyse des performances.
+
+
+MARDI
+
+- Visite client.
+- Préparation d'une proposition.
+
+
+MERCREDI
+
+- ...
+
+
+IMPORTANT :
+
+Les activités ne doivent jamais être mélangées entre les jours.
+
+
+# ====================================================
+# 19. DIFFICULTÉS RENCONTRÉES
+# ====================================================
+
+Créer une section dédiée.
+
+Question :
+
+Avez-vous rencontré des difficultés cette semaine ?
+
+
+Fonctionnalités :
+
+- Ajouter plusieurs difficultés.
+- Modifier.
+- Supprimer.
+- Continuer sans difficulté.
+
+
+# =========================
