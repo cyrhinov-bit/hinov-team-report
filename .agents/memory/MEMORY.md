@@ -1,0 +1,1 @@
+- [Supabase production boundary](supabase-production-boundary.md) — Data API access is server-side; versioned SQL migrations and RLS remain a required deployment step.

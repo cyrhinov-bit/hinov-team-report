@@ -1,6 +1,6 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as SecureStore from 'expo-secure-store';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { apiRequest } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 
 export type ActivityStatus = 'Terminée' | 'En cours' | 'En attente';
 
@@ -38,38 +38,36 @@ type AppStateContextValue = {
   clearGeminiApiKey: () => Promise<void>;
 };
 
-const STORAGE_KEY = '@hinov-team-report/state';
-const GEMINI_KEY_STORAGE = '@hinov-team-report/gemini-api-key';
-const initialActivities: Activity[] = [
-  {
-    id: 'sample-1',
-    date: new Date().toISOString().slice(0, 10),
-    title: 'Revue des priorités de la semaine',
-    description: 'Alignement avec l’équipe sur les livrables et les prochaines échéances.',
-    category: 'Coordination',
-    status: 'Terminée',
-  },
-  {
-    id: 'sample-2',
-    date: new Date().toISOString().slice(0, 10),
-    title: 'Suivi des dossiers clients',
-    description: 'Mise à jour des dossiers en cours et préparation des prochaines actions.',
-    category: 'Clients',
-    status: 'En cours',
-  },
-];
-
 const initialProfile: Profile = {
-  fullName: 'Aminata Diop',
-  role: 'Collaboratrice',
-  department: 'Développement',
-  email: 'aminata.diop@hinov.group',
+  fullName: '',
+  role: 'Collaborateur',
+  department: '',
+  email: '',
 };
+
+type ApiActivity = {
+  id: string;
+  activity_date: string;
+  title: string;
+  description: string;
+  category: string;
+  status: ActivityStatus;
+};
+
+const mapActivity = (activity: ApiActivity): Activity => ({
+  id: activity.id,
+  date: activity.activity_date,
+  title: activity.title,
+  description: activity.description,
+  category: activity.category,
+  status: activity.status,
+});
 
 const AppStateContext = createContext<AppStateContextValue | null>(null);
 
 export function AppStateProvider({ children }: { children: React.ReactNode }) {
-  const [activities, setActivities] = useState<Activity[]>(initialActivities);
+  const { token, isHydrated: authHydrated } = useAuth();
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [profile, setProfile] = useState<Profile>(initialProfile);
   const [difficulties, setDifficulties] = useState('');
   const [perspectives, setPerspectives] = useState('');
@@ -77,35 +75,50 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((stored) => {
-        if (stored) {
-          const parsed = JSON.parse(stored) as Partial<{
-            activities: Activity[];
-            profile: Profile;
-            difficulties: string;
-            perspectives: string;
-          }>;
-          if (parsed.activities) setActivities(parsed.activities);
-          if (parsed.profile) setProfile({ ...initialProfile, ...parsed.profile });
-          if (typeof parsed.difficulties === 'string') setDifficulties(parsed.difficulties);
-          if (typeof parsed.perspectives === 'string') setPerspectives(parsed.perspectives);
+    if (!authHydrated) return;
+    if (!token) {
+      setActivities([]);
+      setProfile(initialProfile);
+      setHasGeminiApiKey(false);
+      setIsHydrated(true);
+      return;
+    }
+
+    let cancelled = false;
+    setIsHydrated(false);
+    Promise.all([
+      apiRequest<{
+        user: { email?: string };
+        profile: { full_name: string; role: string; department: string; avatar_url?: string } | null;
+      }>('/api/auth/me', { token }),
+      apiRequest<ApiActivity[]>('/api/activities', { token }),
+      apiRequest<{ configured: boolean }>('/api/ai-settings', { token }),
+    ])
+      .then(([me, remoteActivities, aiSettings]) => {
+        if (cancelled) return;
+        setProfile({
+          fullName: me.profile?.full_name ?? '',
+          role: me.profile?.role ?? 'Collaborateur',
+          department: me.profile?.department ?? '',
+          email: me.user.email ?? '',
+          avatarUri: me.profile?.avatar_url ?? undefined,
+        });
+        setActivities(remoteActivities.map(mapActivity));
+        setHasGeminiApiKey(aiSettings.configured);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setActivities([]);
+          setHasGeminiApiKey(false);
         }
       })
-      .catch(() => undefined)
-      .finally(() => setIsHydrated(true));
-    SecureStore.getItemAsync(GEMINI_KEY_STORAGE)
-      .then((key) => setHasGeminiApiKey(Boolean(key)))
-      .catch(() => setHasGeminiApiKey(false));
-  }, []);
-
-  useEffect(() => {
-    if (!isHydrated) return;
-    AsyncStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ activities, profile, difficulties, perspectives }),
-    ).catch(() => undefined);
-  }, [activities, profile, difficulties, perspectives, isHydrated]);
+      .finally(() => {
+        if (!cancelled) setIsHydrated(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authHydrated, token]);
 
   const value = useMemo<AppStateContextValue>(
     () => ({
@@ -115,39 +128,78 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       perspectives,
       hasGeminiApiKey,
       isHydrated,
-      addActivity: (activity) =>
-        setActivities((current) => [
-          { ...activity, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}` },
-          ...current,
-        ]),
-      updateActivity: (id, activity) =>
-        setActivities((current) =>
-          current.map((item) => (item.id === id ? { ...item, ...activity } : item)),
-        ),
-      deleteActivity: (id) =>
-        setActivities((current) => current.filter((item) => item.id !== id)),
-      updateProfile: (nextProfile) =>
-        setProfile((current) => ({ ...current, ...nextProfile })),
+      addActivity: (activity) => {
+        const temporaryId = `pending-${Date.now()}`;
+        setActivities((current) => [{ ...activity, id: temporaryId }, ...current]);
+        if (!token) return;
+        apiRequest<ApiActivity>('/api/activities', {
+          method: 'POST',
+          token,
+          body: {
+            activity_date: activity.date,
+            title: activity.title,
+            description: activity.description,
+            category: activity.category,
+            status: activity.status,
+          },
+        })
+          .then((saved) => setActivities((current) => current.map((item) => (item.id === temporaryId ? mapActivity(saved) : item))))
+          .catch(() => setActivities((current) => current.filter((item) => item.id !== temporaryId)));
+      },
+      updateActivity: (id, nextActivity) => {
+        setActivities((current) => current.map((item) => (item.id === id ? { ...item, ...nextActivity } : item)));
+        if (token) {
+          apiRequest(`/api/activities/${id}`, {
+            method: 'PATCH',
+            token,
+            body: {
+              ...(nextActivity.date ? { activity_date: nextActivity.date } : {}),
+              ...(nextActivity.title ? { title: nextActivity.title } : {}),
+              ...(nextActivity.description !== undefined ? { description: nextActivity.description } : {}),
+              ...(nextActivity.category ? { category: nextActivity.category } : {}),
+              ...(nextActivity.status ? { status: nextActivity.status } : {}),
+            },
+          }).catch(() => undefined);
+        }
+      },
+      deleteActivity: (id) => {
+        setActivities((current) => current.filter((item) => item.id !== id));
+        if (token) apiRequest(`/api/activities/${id}`, { method: 'DELETE', token }).catch(() => undefined);
+      },
+      updateProfile: (nextProfile) => {
+        setProfile((current) => ({ ...current, ...nextProfile }));
+        if (token) {
+          apiRequest('/api/profile', {
+            method: 'PATCH',
+            token,
+            body: {
+              ...(nextProfile.fullName !== undefined ? { full_name: nextProfile.fullName } : {}),
+              ...(nextProfile.department !== undefined ? { department: nextProfile.department } : {}),
+              ...(nextProfile.avatarUri !== undefined ? { avatar_url: nextProfile.avatarUri } : {}),
+            },
+          }).catch(() => undefined);
+        }
+      },
       setDifficulties,
       setPerspectives,
       saveGeminiApiKey: async (value) => {
         const trimmed = value.trim();
+        if (!token) throw new Error('Session requise.');
         if (!trimmed) {
-          await SecureStore.deleteItemAsync(GEMINI_KEY_STORAGE);
+          await apiRequest('/api/ai-settings', { method: 'DELETE', token });
           setHasGeminiApiKey(false);
           return;
         }
-        await SecureStore.setItemAsync(GEMINI_KEY_STORAGE, trimmed, {
-          keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-        });
+        await apiRequest('/api/ai-settings', { method: 'POST', token, body: { apiKey: trimmed } });
         setHasGeminiApiKey(true);
       },
       clearGeminiApiKey: async () => {
-        await SecureStore.deleteItemAsync(GEMINI_KEY_STORAGE);
+        if (!token) return;
+        await apiRequest('/api/ai-settings', { method: 'DELETE', token });
         setHasGeminiApiKey(false);
       },
     }),
-    [activities, profile, difficulties, perspectives, hasGeminiApiKey, isHydrated],
+    [activities, profile, difficulties, perspectives, hasGeminiApiKey, isHydrated, token],
   );
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;

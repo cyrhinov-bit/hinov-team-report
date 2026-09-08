@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Platform, StyleSheet, useColorScheme, View } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { Feather } from '@expo/vector-icons';
@@ -7,6 +7,8 @@ import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Tabs } from 'expo-router';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { SymbolView } from 'expo-symbols';
+import { router } from 'expo-router';
+import { useAuth } from '@/context/AuthContext';
 
 // IMPORTANT: iOS 26 uses NativeTabs for native tabs with liquid glass support.
 // NativeTabs intentionally does NOT use custom design tokens — liquid glass
@@ -124,6 +126,13 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
+  const { token, isHydrated } = useAuth();
+
+  useEffect(() => {
+    if (isHydrated && !token) router.replace('/login');
+  }, [isHydrated, token]);
+
+  if (!isHydrated || !token) return null;
   if (isLiquidGlassAvailable()) {
     return <NativeTabLayout />;
   }

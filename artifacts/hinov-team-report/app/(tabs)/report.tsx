@@ -1,11 +1,13 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useAppState } from '@/context/AppStateContext';
 import { useColors } from '@/hooks/useColors';
+import { useAuth } from '@/context/AuthContext';
+import { apiRequest } from '@/lib/api';
 
 const weekDays = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
 const logo = require('@/assets/images/htr-logo.jpeg');
@@ -14,7 +16,33 @@ export default function ReportScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { activities, profile, difficulties, perspectives, setDifficulties, setPerspectives } = useAppState();
+  const { token } = useAuth();
   const [isImproved, setIsImproved] = useState(false);
+  const [isImproving, setIsImproving] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const weekStart = useMemo(() => {
+    const date = new Date();
+    const day = date.getDay() || 7;
+    date.setDate(date.getDate() - day + 1);
+    return date.toISOString().slice(0, 10);
+  }, []);
+  const weekLabel = useMemo(() => {
+    const start = new Date(`${weekStart}T12:00:00`);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 4);
+    return `Du ${start.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' })} au ${end.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+  }, [weekStart]);
+
+  useEffect(() => {
+    if (!token) return;
+    apiRequest<{ difficulties?: string; perspectives?: string } | null>(`/api/reports?week_start=${weekStart}`, { token })
+      .then((report) => {
+        if (!report) return;
+        setDifficulties(report.difficulties ?? '');
+        setPerspectives(report.perspectives ?? '');
+      })
+      .catch(() => undefined);
+  }, [token, weekStart, setDifficulties, setPerspectives]);
   const grouped = useMemo(() => {
     const byDay = new Map<string, typeof activities>();
     activities.forEach((activity) => {
@@ -25,15 +53,41 @@ export default function ReportScreen() {
     return byDay;
   }, [activities]);
 
-  const improveWriting = () => {
+  const saveReport = async () => {
+    if (!token) return;
+    setIsSaving(true);
+    try {
+      await apiRequest('/api/reports', {
+        method: 'POST',
+        token,
+        body: { week_start: weekStart, difficulties, perspectives },
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const improveWriting = async () => {
     if (!difficulties.trim() && !perspectives.trim()) {
       Alert.alert('Ajoutez du contenu', 'Écrivez au moins une difficulté ou une perspective avant de demander une amélioration.');
       return;
     }
-    if (difficulties.trim()) setDifficulties(`${difficulties.trim().replace(/\.$/, '')}. Une attention particulière sera portée au suivi et à la résolution de ce point.`);
-    if (perspectives.trim()) setPerspectives(`${perspectives.trim().replace(/\.$/, '')}. Cette priorité sera suivie dès le début de la prochaine semaine.`);
-    setIsImproved(true);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setIsImproving(true);
+    try {
+      const improved = await apiRequest<{ difficulties: string; perspectives: string }>('/api/reports/improve', {
+        method: 'POST',
+        token,
+        body: { difficulties, perspectives },
+      });
+      setDifficulties(improved.difficulties);
+      setPerspectives(improved.perspectives);
+      setIsImproved(true);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      Alert.alert('Amélioration indisponible', error instanceof Error ? error.message : 'Configurez votre clé Gemini dans Paramètres IA.');
+    } finally {
+      setIsImproving(false);
+    }
   };
 
   return (
@@ -47,7 +101,7 @@ export default function ReportScreen() {
         <View>
           <Text style={[styles.eyebrow, { color: colors.ai }]}>DOCUMENT DE LA SEMAINE</Text>
           <Text style={[styles.title, { color: colors.foreground }]}>Mon rapport</Text>
-          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Du 08 au 12 septembre 2026</Text>
+          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{weekLabel}</Text>
         </View>
         <View style={styles.headerActions}>
           <Image source={profile.avatarUri ? { uri: profile.avatarUri } : logo} style={[styles.headerAvatar, { borderColor: colors.border }]} />
@@ -103,10 +157,11 @@ export default function ReportScreen() {
         <Pressable
           testID="improve-report"
           onPress={improveWriting}
+          disabled={isImproving}
           style={({ pressed }) => [styles.aiButton, { backgroundColor: colors.purpleSoft, opacity: pressed ? 0.75 : 1 }]}
         >
           <Feather name="zap" size={14} color={colors.ai} />
-          <Text style={[styles.aiButtonText, { color: colors.ai }]}>Améliorer</Text>
+          <Text style={[styles.aiButtonText, { color: colors.ai }]}>{isImproving ? 'Analyse…' : 'Améliorer'}</Text>
         </Pressable>
       </View>
       {isImproved ? <Text style={[styles.improvedNote, { color: colors.success }]}>Suggestion améliorée appliquée à votre brouillon.</Text> : null}
@@ -132,11 +187,19 @@ export default function ReportScreen() {
       />
       <Pressable
         testID="preview-report"
-        onPress={() => Alert.alert('Rapport prêt', 'La prévisualisation PDF sera disponible après validation du contenu.')}
+        onPress={async () => {
+          try {
+            await saveReport();
+            Alert.alert('Rapport enregistré', 'Votre brouillon est sécurisé dans Supabase. La prévisualisation PDF sera disponible après validation.');
+          } catch (error) {
+            Alert.alert('Enregistrement impossible', error instanceof Error ? error.message : 'Réessayez dans un instant.');
+          }
+        }}
+        disabled={isSaving}
         style={({ pressed }) => [styles.previewButton, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
       >
         <Feather name="eye" size={17} color={colors.primaryForeground} />
-        <Text style={styles.previewText}>Prévisualiser mon rapport</Text>
+        <Text style={styles.previewText}>{isSaving ? 'Enregistrement…' : 'Enregistrer mon rapport'}</Text>
       </Pressable>
     </KeyboardAwareScrollViewCompat>
   );
