@@ -26,18 +26,23 @@ export default function Root({ children }: PropsWithChildren) {
           rel="stylesheet"
         />
 
-        {/* Polices vectorielles chargées localement en @font-face */}
+        {/* Polices vectorielles chargées localement en @font-face pour le Web & Mobile */}
         <style
           dangerouslySetInnerHTML={{
             __html: `
+              @font-face {
+                font-family: 'feather';
+                src: url('/fonts/Feather.ttf') format('truetype');
+                font-display: block;
+              }
               @font-face {
                 font-family: 'Feather';
                 src: url('/fonts/Feather.ttf') format('truetype');
                 font-display: block;
               }
               @font-face {
-                font-family: 'Ionicons';
-                src: url('/fonts/Ionicons.ttf') format('truetype');
+                font-family: 'material-community';
+                src: url('/fonts/MaterialCommunityIcons.ttf') format('truetype');
                 font-display: block;
               }
               @font-face {
@@ -46,8 +51,33 @@ export default function Root({ children }: PropsWithChildren) {
                 font-display: block;
               }
               @font-face {
+                font-family: 'Material Design Icons';
+                src: url('/fonts/MaterialCommunityIcons.ttf') format('truetype');
+                font-display: block;
+              }
+              @font-face {
+                font-family: 'material';
+                src: url('/fonts/MaterialIcons.ttf') format('truetype');
+                font-display: block;
+              }
+              @font-face {
                 font-family: 'MaterialIcons';
                 src: url('/fonts/MaterialIcons.ttf') format('truetype');
+                font-display: block;
+              }
+              @font-face {
+                font-family: 'Material Icons';
+                src: url('/fonts/MaterialIcons.ttf') format('truetype');
+                font-display: block;
+              }
+              @font-face {
+                font-family: 'ionicons';
+                src: url('/fonts/Ionicons.ttf') format('truetype');
+                font-display: block;
+              }
+              @font-face {
+                font-family: 'Ionicons';
+                src: url('/fonts/Ionicons.ttf') format('truetype');
                 font-display: block;
               }
               @font-face {
@@ -56,8 +86,33 @@ export default function Root({ children }: PropsWithChildren) {
                 font-display: block;
               }
               @font-face {
+                font-family: 'octicons';
+                src: url('/fonts/Octicons.ttf') format('truetype');
+                font-display: block;
+              }
+              @font-face {
                 font-family: 'Octicons';
                 src: url('/fonts/Octicons.ttf') format('truetype');
+                font-display: block;
+              }
+              @font-face {
+                font-family: 'anticon';
+                src: url('/fonts/AntDesign.ttf') format('truetype');
+                font-display: block;
+              }
+              @font-face {
+                font-family: 'AntDesign';
+                src: url('/fonts/AntDesign.ttf') format('truetype');
+                font-display: block;
+              }
+              @font-face {
+                font-family: 'entypo';
+                src: url('/fonts/Entypo.ttf') format('truetype');
+                font-display: block;
+              }
+              @font-face {
+                font-family: 'Entypo';
+                src: url('/fonts/Entypo.ttf') format('truetype');
                 font-display: block;
               }
             `,

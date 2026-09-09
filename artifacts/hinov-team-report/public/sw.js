@@ -1,11 +1,17 @@
 // Service Worker for HINOV Team Report PWA
-const CACHE_NAME = 'htr-cache-v1';
+const CACHE_NAME = 'htr-cache-v2';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
   '/favicon.png',
   '/icons/icon-192.png',
-  '/icons/icon-512.png'
+  '/icons/icon-512.png',
+  '/fonts/Feather.ttf',
+  '/fonts/Ionicons.ttf',
+  '/fonts/MaterialCommunityIcons.ttf',
+  '/fonts/MaterialIcons.ttf',
+  '/fonts/FontAwesome.ttf',
+  '/fonts/Octicons.ttf'
 ];
 
 self.addEventListener('install', (event) => {
@@ -39,23 +45,25 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/api')) return;
 
   event.respondWith(
-    fetch(event.request)
-      .then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-          const responseClone = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
-          });
-        }
-        return networkResponse;
-      })
-      .catch(async () => {
-        const cachedResponse = await caches.match(event.request);
-        if (cachedResponse) return cachedResponse;
-        if (event.request.headers.get('accept')?.includes('text/html')) {
-          return caches.match('/');
-        }
-        return new Response('Hors ligne', { status: 503, statusText: 'Offline' });
-      })
+    caches.match(event.request).then((cachedResponse) => {
+      if (cachedResponse) return cachedResponse;
+
+      return fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseClone);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(async () => {
+          if (event.request.headers.get('accept')?.includes('text/html')) {
+            return caches.match('/');
+          }
+          return new Response('Hors ligne', { status: 503, statusText: 'Offline' });
+        });
+    })
   );
 });
