@@ -7,6 +7,7 @@ import {
   Alert,
   Image,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -303,6 +304,28 @@ export default function UsersManagementScreen() {
       return;
     }
 
+    const performDelete = async () => {
+      try {
+        await apiRequest(`/api/admin/users/${user.id}`, { method: 'DELETE', token });
+        if (Platform.OS !== 'web') {
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        }
+        fetchUsers();
+      } catch (error) {
+        Alert.alert('Erreur', error instanceof Error ? error.message : 'Impossible de supprimer cet utilisateur.');
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      const ok = typeof window !== 'undefined'
+        ? window.confirm(`Êtes-vous sûr de vouloir supprimer définitivement le compte de ${user.fullName} (${user.email}) ? Cette action est irréversible.`)
+        : true;
+      if (ok) {
+        performDelete();
+      }
+      return;
+    }
+
     Alert.alert(
       'Supprimer cet utilisateur ?',
       `Êtes-vous sûr de vouloir supprimer définitivement le compte de ${user.fullName} (${user.email}) ? Cette action est irréversible.`,
@@ -311,15 +334,7 @@ export default function UsersManagementScreen() {
         {
           text: 'Supprimer',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              await apiRequest(`/api/admin/users/${user.id}`, { method: 'DELETE', token });
-              await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-              fetchUsers();
-            } catch (error) {
-              Alert.alert('Erreur', error instanceof Error ? error.message : 'Impossible de supprimer cet utilisateur.');
-            }
-          },
+          onPress: performDelete,
         },
       ],
     );

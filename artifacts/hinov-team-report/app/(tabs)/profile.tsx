@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useState } from 'react';
-import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
@@ -59,7 +59,26 @@ export default function ProfileScreen() {
     }
   };
 
+  const performLogout = async () => {
+    try {
+      await logout();
+      if (Platform.OS !== 'web') {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+      }
+    } finally {
+      router.replace('/login');
+    }
+  };
+
   const handleLogout = () => {
+    if (Platform.OS === 'web') {
+      const ok = typeof window !== 'undefined' ? window.confirm('Êtes-vous sûr de vouloir vous déconnecter de votre compte HTR ?') : true;
+      if (ok) {
+        performLogout();
+      }
+      return;
+    }
+
     Alert.alert(
       'Déconnexion',
       'Êtes-vous sûr de vouloir vous déconnecter de votre compte HTR ?',
@@ -68,11 +87,7 @@ export default function ProfileScreen() {
         {
           text: 'Se déconnecter',
           style: 'destructive',
-          onPress: async () => {
-            await logout();
-            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-            router.replace('/login');
-          },
+          onPress: performLogout,
         },
       ],
     );

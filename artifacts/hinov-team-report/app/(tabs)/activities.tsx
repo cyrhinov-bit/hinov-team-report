@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Image, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { Activity, ActivityStatus, useAppState } from '@/context/AppStateContext';
@@ -111,6 +111,13 @@ export default function ActivitiesScreen() {
   };
 
   const confirmDelete = (id: string) => {
+    if (Platform.OS === 'web') {
+      const ok = typeof window !== 'undefined' ? window.confirm('Supprimer cette activité ? Cette action est définitive.') : true;
+      if (ok) {
+        deleteActivity(id);
+      }
+      return;
+    }
     Alert.alert('Supprimer cette activité ?', 'Cette action est définitive.', [
       { text: 'Annuler', style: 'cancel' },
       {
