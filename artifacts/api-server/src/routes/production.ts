@@ -1,5 +1,12 @@
 import { Router, type IRouter } from "express";
-import { decryptSecret, encryptSecret, getBearerToken, getSupabaseUser, supabaseRequest } from "../lib/supabase";
+import {
+  decryptSecret,
+  encryptSecret,
+  getBearerToken,
+  getSupabaseUser,
+  supabaseRequest,
+  supabaseAdminRequest,
+} from "../lib/supabase";
 
 const router: IRouter = Router();
 
@@ -399,6 +406,244 @@ router.post("/reports/improve", async (req, res) => {
   } catch {
     res.status(502).json({ message: "La réponse Gemini n’a pas pu être interprétée." });
   }
+});
+
+// ==========================================
+// GESTION D'ÉQUIPE (ADMIN / SUPERADMIN)
+// ==========================================
+
+router.get("/admin/users", async (req, res) => {
+  const user = await getSupabaseUser(req);
+  if (!user) {
+    res.status(401).json({ message: "Session invalide ou expirée." });
+    return;
+  }
+
+  // Vérifier rôle admin
+  const callerProfile = await supabaseAdminRequest(`/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=role`);
+  const callerData = (callerProfile.ok ? await callerProfile.json() : []) as Array<{ role?: string }>;
+  const role = callerData[0]?.role?.toUpperCase() || (user.user_metadata?.role as string)?.toUpperCase();
+  if (role !== "ADMIN" && role !== "SUPERADMIN") {
+    res.status(403).json({ message: "Accès réservé aux administrateurs." });
+    return;
+  }
+
+  // Récupérer la liste des profils
+  const profilesRes = await supabaseAdminRequest(
+    "/rest/v1/profiles?select=id,email,full_name,role,department,avatar_url,created_at&order=created_at.desc",
+  );
+  const rawProfiles = (profilesRes.ok ? await profilesRes.json() : []) as Array<Record<string, any>>;
+
+  const formatted = rawProfiles.map((p) => ({
+    id: p.id,
+    email: p.email || "",
+    fullName: p.full_name || p.fullName || "Utilisateur",
+    role: p.role || "COLLABORATEUR",
+    department: p.department || "Développement",
+    avatarUrl: p.avatar_url || p.avatarUrl || null,
+    createdAt: p.created_at || new Date().toISOString(),
+  }));
+
+  res.json(formatted);
+});
+
+router.post("/admin/users", async (req, res) => {
+  const user = await getSupabaseUser(req);
+  if (!user) {
+    res.status(401).json({ message: "Session invalide ou expirée." });
+    return;
+  }
+
+  const { fullName, email, password, department, role } = req.body ?? {};
+  if (!fullName || !email) {
+    res.status(400).json({ message: "Nom complet et adresse email requis." });
+    return;
+  }
+
+  const cleanEmail = String(email).trim().toLowerCase();
+  const cleanPass = password && String(password).length >= 6 ? String(password) : `Hinov@${Math.random().toString(36).slice(-6)}`;
+  const cleanRole = role && ["ADMIN", "SUPERADMIN", "COLLABORATEUR"].includes(String(role).toUpperCase()) ? String(role).toUpperCase() : "COLLABORATEUR";
+  const cleanDept = String(department || "Développement").trim();
+
+  // 1. Créer l'utilisateur dans Supabase Auth Admin
+  const createAuthRes = await supabaseAdminRequest("/auth/v1/admin/users", {
+    method: "POST",
+    body: JSON.stringify({
+      email: cleanEmail,
+      password: cleanPass,
+      email_confirm: true,
+      user_metadata: {
+        full_name: fullName.trim(),
+        role: cleanRole,
+        department: cleanDept,
+      },
+    }),
+  });
+
+  let authPayload = (await createAuthRes.json().catch(() => ({}))) as Record<string, any>;
+
+  // Fallback si admin auth non dispo : essayer /auth/v1/signup
+  if (!createAuthRes.ok && createAuthRes.status !== 422) {
+    const signupRes = await supabaseRequest("/auth/v1/signup", {
+      method: "POST",
+      body: JSON.stringify({
+        email: cleanEmail,
+        password: cleanPass,
+        data: {
+          full_name: fullName.trim(),
+          role: cleanRole,
+          department: cleanDept,
+        },
+      }),
+    });
+    authPayload = (await signupRes.json().catch(() => ({}))) as Record<string, any>;
+    if (!signupRes.ok) {
+      res.status(502).json({
+        message: authPayload.msg || authPayload.message || "Impossible de créer le compte utilisateur.",
+        detail: authPayload,
+      });
+      return;
+    }
+  } else if (!createAuthRes.ok) {
+    res.status(502).json({
+      message: authPayload.msg || authPayload.message || "Échec de création du compte dans Supabase.",
+      detail: authPayload,
+    });
+    return;
+  }
+
+  const createdUserId = authPayload.id || authPayload.user?.id;
+
+  // 2. Insérer / Mettre à jour le profil dans public.profiles
+  if (createdUserId) {
+    await supabaseAdminRequest("/rest/v1/profiles", {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+      body: JSON.stringify({
+        id: createdUserId,
+        email: cleanEmail,
+        full_name: fullName.trim(),
+        role: cleanRole,
+        department: cleanDept,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+  }
+
+  res.status(201).json({
+    id: createdUserId || `user_${Date.now()}`,
+    email: cleanEmail,
+    fullName: fullName.trim(),
+    role: cleanRole,
+    department: cleanDept,
+    createdAt: new Date().toISOString(),
+  });
+});
+
+router.patch("/admin/users/:id", async (req, res) => {
+  const user = await getSupabaseUser(req);
+  if (!user) {
+    res.status(401).json({ message: "Session invalide ou expirée." });
+    return;
+  }
+
+  const targetId = req.params.id;
+  const { fullName, department, role } = req.body ?? {};
+
+  const updates: Record<string, any> = { updated_at: new Date().toISOString() };
+  if (fullName !== undefined) updates.full_name = String(fullName).trim();
+  if (department !== undefined) updates.department = String(department).trim();
+  if (role !== undefined) updates.role = String(role).trim().toUpperCase();
+
+  const response = await supabaseAdminRequest(
+    `/rest/v1/profiles?id=eq.${encodeURIComponent(targetId)}`,
+    {
+      method: "PATCH",
+      headers: { Prefer: "return=representation" },
+      body: JSON.stringify(updates),
+    },
+  );
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    res.status(502).json({ message: "Impossible de mettre à jour l'utilisateur.", detail: payload });
+    return;
+  }
+
+  res.json(Array.isArray(payload) ? payload[0] : payload);
+});
+
+router.delete("/admin/users/:id", async (req, res) => {
+  const user = await getSupabaseUser(req);
+  if (!user) {
+    res.status(401).json({ message: "Session invalide ou expirée." });
+    return;
+  }
+
+  const targetId = req.params.id;
+
+  // Supprimer de auth admin et de profiles
+  await supabaseAdminRequest(`/auth/v1/admin/users/${encodeURIComponent(targetId)}`, { method: "DELETE" });
+  await supabaseAdminRequest(`/rest/v1/profiles?id=eq.${encodeURIComponent(targetId)}`, { method: "DELETE" });
+
+  res.status(204).send();
+});
+
+// ==========================================
+// PARAMÈTRES DE L'APPLICATION (BRANDING & PDF)
+// ==========================================
+
+let inMemoryAppSettings = {
+  companyName: "HINOV GROUP",
+  pdfHeaderImage: null as string | null,
+  pdfFooterText: "HINOV Team Report - Document Confidentiel d'Entreprise",
+  primaryColor: "#1E3A8A",
+  secondaryColor: "#4F46E5",
+};
+
+router.get("/app-settings", async (_req, res) => {
+  const dbRes = await supabaseAdminRequest("/rest/v1/app_settings?id=eq.default&select=*");
+  const data = (dbRes.ok ? await dbRes.json() : []) as Array<Record<string, any>>;
+  if (data && data.length > 0 && data[0]) {
+    res.json({
+      companyName: data[0].company_name || inMemoryAppSettings.companyName,
+      pdfHeaderImage: data[0].pdf_header_image || inMemoryAppSettings.pdfHeaderImage,
+      pdfFooterText: data[0].pdf_footer_text || inMemoryAppSettings.pdfFooterText,
+      primaryColor: data[0].primary_color || inMemoryAppSettings.primaryColor,
+      secondaryColor: data[0].secondary_color || inMemoryAppSettings.secondaryColor,
+    });
+    return;
+  }
+  res.json(inMemoryAppSettings);
+});
+
+router.post("/app-settings", async (req, res) => {
+  const { companyName, pdfHeaderImage, pdfFooterText, primaryColor, secondaryColor } = req.body ?? {};
+
+  inMemoryAppSettings = {
+    companyName: companyName || inMemoryAppSettings.companyName,
+    pdfHeaderImage: pdfHeaderImage !== undefined ? pdfHeaderImage : inMemoryAppSettings.pdfHeaderImage,
+    pdfFooterText: pdfFooterText || inMemoryAppSettings.pdfFooterText,
+    primaryColor: primaryColor || inMemoryAppSettings.primaryColor,
+    secondaryColor: secondaryColor || inMemoryAppSettings.secondaryColor,
+  };
+
+  // Tenter de persister en DB si la table existe
+  await supabaseAdminRequest("/rest/v1/app_settings", {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+    body: JSON.stringify({
+      id: "default",
+      company_name: inMemoryAppSettings.companyName,
+      pdf_header_image: inMemoryAppSettings.pdfHeaderImage,
+      pdf_footer_text: inMemoryAppSettings.pdfFooterText,
+      primary_color: inMemoryAppSettings.primaryColor,
+      secondary_color: inMemoryAppSettings.secondaryColor,
+      updated_at: new Date().toISOString(),
+    }),
+  }).catch(() => {});
+
+  res.json(inMemoryAppSettings);
 });
 
 export default router;

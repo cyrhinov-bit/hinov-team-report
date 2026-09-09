@@ -11,18 +11,21 @@ import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { usePWAInstall } from '@/hooks/usePWAInstall';
 
 export function PWAInstallBanner() {
-  const { canInstall, isIOS, promptInstall, dismissBanner } = usePWAInstall();
-  const [showIOSModal, setShowIOSModal] = useState(false);
+  const { canInstall, isIOS, hasNativePrompt, promptInstall, dismissBanner } = usePWAInstall();
+  const [showGuideModal, setShowGuideModal] = useState(false);
 
   if (Platform.OS !== 'web' || !canInstall) {
     return null;
   }
 
   const handleInstallClick = async () => {
-    if (isIOS) {
-      setShowIOSModal(true);
-    } else {
-      await promptInstall();
+    if (isIOS || !hasNativePrompt) {
+      setShowGuideModal(true);
+      return;
+    }
+    const result = await promptInstall();
+    if (result === 'manual') {
+      setShowGuideModal(true);
     }
   };
 
@@ -32,14 +35,14 @@ export function PWAInstallBanner() {
         <View style={styles.bannerContent}>
           {/* Logo / Badge de l'App */}
           <View style={styles.iconContainer}>
-            <MaterialCommunityIcons name="cellphone-arrow-down" size={24} color="#FFFFFF" />
+            <MaterialCommunityIcons name="cellphone-arrow-down" size={22} color="#FFFFFF" />
           </View>
 
           {/* Textes d'information */}
           <View style={styles.textContainer}>
-            <Text style={styles.title}>Installer l'application</Text>
+            <Text style={styles.title}>Installer HINOV Team Report</Text>
             <Text style={styles.subtitle}>
-              Ajoutez l'app sur votre écran d'accueil pour un accès rapide et hors-ligne.
+              Ajoutez l'application sur votre écran d'accueil pour un accès direct et hors-ligne.
             </Text>
           </View>
 
@@ -65,49 +68,75 @@ export function PWAInstallBanner() {
         </View>
       </View>
 
-      {/* Modal d'instructions pour iPhone / iPad Safari */}
+      {/* Modal d'instructions pour navigateur */}
       <Modal
-        visible={showIOSModal}
+        visible={showGuideModal}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowIOSModal(false)}
+        onRequestClose={() => setShowGuideModal(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Installer sur iPhone / iPad</Text>
-              <TouchableOpacity onPress={() => setShowIOSModal(false)}>
+              <Text style={styles.modalTitle}>
+                {isIOS ? 'Installer sur iPhone / iPad' : "Installer l'application"}
+              </Text>
+              <TouchableOpacity onPress={() => setShowGuideModal(false)}>
                 <Feather name="x" size={20} color="#64748B" />
               </TouchableOpacity>
             </View>
 
             <Text style={styles.modalDesc}>
-              Pour installer cette application sur votre écran d'accueil iOS :
+              {isIOS
+                ? 'Pour installer l’application sur votre écran d’accueil iOS :'
+                : 'Pour installer l’application sur votre appareil :'}
             </Text>
 
-            <View style={styles.stepRow}>
-              <View style={styles.stepNumber}>
-                <Text style={styles.stepNumberText}>1</Text>
-              </View>
-              <Text style={styles.stepText}>
-                Appuyez sur le bouton de partage{' '}
-                <Ionicons name="share-outline" size={18} color="#2563EB" /> dans la barre de Safari.
-              </Text>
-            </View>
-
-            <View style={styles.stepRow}>
-              <View style={styles.stepNumber}>
-                <Text style={styles.stepNumberText}>2</Text>
-              </View>
-              <Text style={styles.stepText}>
-                Faites défiler vers le bas et appuyez sur{' '}
-                <Text style={styles.stepBold}>« Sur l'écran d'accueil » ⊞</Text>.
-              </Text>
-            </View>
+            {isIOS ? (
+              <>
+                <View style={styles.stepRow}>
+                  <View style={styles.stepNumber}>
+                    <Text style={styles.stepNumberText}>1</Text>
+                  </View>
+                  <Text style={styles.stepText}>
+                    Appuyez sur le bouton de partage{' '}
+                    <Ionicons name="share-outline" size={18} color="#2563EB" /> dans Safari.
+                  </Text>
+                </View>
+                <View style={styles.stepRow}>
+                  <View style={styles.stepNumber}>
+                    <Text style={styles.stepNumberText}>2</Text>
+                  </View>
+                  <Text style={styles.stepText}>
+                    Faites défiler vers le bas et appuyez sur{' '}
+                    <Text style={styles.stepBold}>« Sur l'écran d'accueil » ⊞</Text>.
+                  </Text>
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={styles.stepRow}>
+                  <View style={styles.stepNumber}>
+                    <Text style={styles.stepNumberText}>1</Text>
+                  </View>
+                  <Text style={styles.stepText}>
+                    Cliquez sur l'icône <Text style={styles.stepBold}>« Installer » ⊕</Text> dans la barre d'adresse de votre navigateur (Chrome / Edge).
+                  </Text>
+                </View>
+                <View style={styles.stepRow}>
+                  <View style={styles.stepNumber}>
+                    <Text style={styles.stepNumberText}>2</Text>
+                  </View>
+                  <Text style={styles.stepText}>
+                    Ou ouvrez le menu du navigateur (⋮) puis choisissez <Text style={styles.stepBold}>« Installer HINOV Team Report »</Text>.
+                  </Text>
+                </View>
+              </>
+            )}
 
             <TouchableOpacity
               style={styles.modalButton}
-              onPress={() => setShowIOSModal(false)}
+              onPress={() => setShowGuideModal(false)}
               activeOpacity={0.85}
             >
               <Text style={styles.modalButtonText}>Compris !</Text>
@@ -137,8 +166,8 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   iconContainer: {
-    width: 40,
-    height: 40,
+    width: 38,
+    height: 38,
     borderRadius: 10,
     backgroundColor: '#2563EB',
     alignItems: 'center',
@@ -191,7 +220,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 22,
-    maxWidth: 400,
+    maxWidth: 420,
     width: '100%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
@@ -260,4 +289,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

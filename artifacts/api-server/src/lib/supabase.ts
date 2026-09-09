@@ -3,27 +3,49 @@ import type { Request } from "express";
 
 const supabaseUrl = (process.env.SUPABASE_URL || "http://127.0.0.1:54321").replace(/\/+$/, "");
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || "";
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
 export async function supabaseRequest(
   path: string,
   options: { method?: string; headers?: Record<string, string>; body?: string } = {},
 ) {
   const url = `${supabaseUrl}${path.startsWith("/") ? path : `/${path}`}`;
+  const effectiveApiKey =
+    options.headers?.apikey ||
+    options.headers?.apiKey ||
+    supabaseAnonKey ||
+    supabaseServiceRoleKey;
+
   const headers: Record<string, string> = {
     Accept: "application/json",
-    ...(supabaseAnonKey ? { apikey: supabaseAnonKey } : {}),
+    ...(effectiveApiKey ? { apikey: effectiveApiKey } : {}),
     ...(options.body ? { "Content-Type": "application/json" } : {}),
     ...(options.headers ?? {}),
   };
 
-  if (!headers.Authorization && !headers.authorization && supabaseAnonKey) {
-    headers.Authorization = `Bearer ${supabaseAnonKey}`;
+  if (!headers.Authorization && !headers.authorization && effectiveApiKey) {
+    headers.Authorization = `Bearer ${effectiveApiKey}`;
   }
 
   return fetch(url, {
     method: options.method ?? "GET",
     headers,
     body: options.body,
+  });
+}
+
+export async function supabaseAdminRequest(
+  path: string,
+  options: { method?: string; headers?: Record<string, string>; body?: string } = {},
+) {
+  const adminKey = supabaseServiceRoleKey || supabaseAnonKey;
+  return supabaseRequest(path, {
+    ...options,
+    headers: {
+      apikey: adminKey,
+      Authorization: `Bearer ${adminKey}`,
+      ...(options.headers ?? {}),
+    },
   });
 }
 

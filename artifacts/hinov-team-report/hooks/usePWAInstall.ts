@@ -22,19 +22,18 @@ export function usePWAInstall() {
     // 1. Vérifier si l'application est déjà exécutée en mode Standalone (déjà installée)
     const isStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as any).standalone === true;
+      (window.navigator as any).standalone === true ||
+      (document.referrer && document.referrer.startsWith('android-app://'));
 
     if (isStandalone) {
       setIsInstalled(true);
       return;
     }
 
-    // 2. Détecter si l'utilisateur est sur iOS Safari
+    // 2. Détecter si l'utilisateur est sur iOS (Safari ou Webview)
     const userAgent = window.navigator.userAgent.toLowerCase();
     const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
-    const isSafari = /safari/.test(userAgent) && !/chrome|crios|fxios/.test(userAgent);
-
-    if (isIosDevice && isSafari && !isStandalone) {
+    if (isIosDevice && !isStandalone) {
       setIsIOS(true);
     }
 
@@ -59,34 +58,39 @@ export function usePWAInstall() {
     };
   }, []);
 
-  const promptInstall = useCallback(async () => {
-    if (!deferredPrompt) return false;
+  const promptInstall = useCallback(async (): Promise<'prompted' | 'manual' | 'installed'> => {
+    if (isInstalled) return 'installed';
 
-    try {
-      await deferredPrompt.prompt();
-      const choiceResult = await deferredPrompt.userChoice;
-      if (choiceResult.outcome === 'accepted') {
-        setIsInstalled(true);
+    if (deferredPrompt) {
+      try {
+        await deferredPrompt.prompt();
+        const choiceResult = await deferredPrompt.userChoice;
+        if (choiceResult.outcome === 'accepted') {
+          setIsInstalled(true);
+        }
+        setDeferredPrompt(null);
+        return 'prompted';
+      } catch {
+        return 'manual';
       }
-      setDeferredPrompt(null);
-      return choiceResult.outcome === 'accepted';
-    } catch {
-      return false;
     }
-  }, [deferredPrompt]);
+
+    return 'manual';
+  }, [deferredPrompt, isInstalled]);
 
   const dismissBanner = useCallback(() => {
     setIsDismissed(true);
   }, []);
 
-  const canInstall = (Boolean(deferredPrompt) || isIOS) && !isInstalled && !isDismissed;
+  // Le bouton/bannière peut s'afficher sur le Web tant que l'app n'est pas en standalone
+  const canInstall = Platform.OS === 'web' && !isInstalled && !isDismissed;
 
   return {
     canInstall,
     isInstalled,
     isIOS,
+    hasNativePrompt: Boolean(deferredPrompt),
     promptInstall,
     dismissBanner,
   };
 }
-
