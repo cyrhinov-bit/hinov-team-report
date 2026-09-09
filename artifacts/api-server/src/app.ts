@@ -1,8 +1,14 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 import router from "./routes";
 import { logger } from "./lib/logger";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app: Express = express();
 
@@ -97,6 +103,23 @@ app.use("/api", (req, _res, next) => {
   next();
 });
 app.use("/api", router);
+
+// Servir l'application Web PWA statique si le dossier dist existe
+const clientDistCandidates = [
+  path.resolve(__dirname, "../../hinov-team-report/dist"),
+  path.resolve(process.cwd(), "artifacts/hinov-team-report/dist"),
+  path.resolve(process.cwd(), "dist"),
+];
+
+const foundDist = clientDistCandidates.find((dir) => fs.existsSync(dir));
+if (foundDist) {
+  logger.info({ distPath: foundDist }, "Serving static PWA frontend");
+  app.use(express.static(foundDist));
+  app.get("*", (req: Request, res: Response, next: NextFunction) => {
+    if (req.path.startsWith("/api")) return next();
+    res.sendFile(path.join(foundDist, "index.html"));
+  });
+}
 
 setInterval(() => {
   const now = Date.now();
