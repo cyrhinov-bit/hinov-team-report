@@ -6,6 +6,7 @@ import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'reac
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
+import { PWAInstallButton } from '@/components/PWAInstallButton';
 import { useAppState } from '@/context/AppStateContext';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
@@ -146,6 +147,8 @@ export default function ProfileScreen() {
           <Text style={[styles.securityText, { color: colors.mutedForeground }]}>Votre espace est protégé par HINOV Group.</Text>
         </View>
       </View>
+
+      <PWAInstallButton variant="card" />
 
       <Pressable
         testID="ai-settings-link"
