@@ -9,7 +9,6 @@ import { Activity, ActivityStatus, useAppState } from '@/context/AppStateContext
 import { useColors } from '@/hooks/useColors';
 import { getCurrentWeekRange } from '@/lib/constants';
 
-const categories = ['Coordination', 'Clients', 'Production', 'Administration'];
 const statuses: ActivityStatus[] = ['Terminée', 'En cours', 'En attente'];
 const logo = require('@/assets/images/htr-logo.jpeg');
 
@@ -22,7 +21,6 @@ type FormState = {
   date: string;
   title: string;
   description: string;
-  category: string;
   status: ActivityStatus;
 };
 
@@ -30,7 +28,6 @@ const defaultForm = (): FormState => ({
   date: getTodayString(),
   title: '',
   description: '',
-  category: categories[0],
   status: 'Terminée',
 });
 
@@ -69,7 +66,6 @@ export default function ActivitiesScreen() {
       date: activity.date,
       title: activity.title,
       description: activity.description,
-      category: activity.category,
       status: activity.status,
     });
     setModalVisible(true);
@@ -94,7 +90,6 @@ export default function ActivitiesScreen() {
         date: form.date,
         title: form.title.trim(),
         description: form.description.trim() || 'Aucune description ajoutée.',
-        category: form.category,
         status: form.status,
       });
     } else {
@@ -102,7 +97,6 @@ export default function ActivitiesScreen() {
         date: form.date,
         title: form.title.trim(),
         description: form.description.trim() || 'Aucune description ajoutée.',
-        category: form.category,
         status: form.status,
       });
     }
@@ -198,7 +192,11 @@ export default function ActivitiesScreen() {
               <Text style={[styles.activityTitle, { color: colors.foreground }]}>{activity.title}</Text>
               <Text style={[styles.activityDescription, { color: colors.mutedForeground }]}>{activity.description}</Text>
               <View style={styles.activityBottom}>
-                <Text style={[styles.categoryText, { color: colors.primary }]}>{activity.category}</Text>
+                {activity.category ? (
+                  <Text style={[styles.categoryText, { color: colors.primary }]}>{activity.category}</Text>
+                ) : (
+                  <View />
+                )}
                 <View style={[styles.statusPill, { backgroundColor: activity.status === 'Terminée' ? colors.greenSoft : activity.status === 'En attente' ? colors.muted : colors.orangeSoft }]}>
                   <Text style={[styles.statusText, { color: activity.status === 'Terminée' ? colors.success : activity.status === 'En attente' ? colors.mutedForeground : colors.warning }]}>
                     {activity.status}
@@ -249,15 +247,6 @@ export default function ActivitiesScreen() {
 
           <Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Description</Text>
           <TextInput testID="activity-description" value={form.description} onChangeText={(v) => setForm((f) => ({ ...f, description: v }))} placeholder="Décrivez brièvement ce qui a été réalisé…" placeholderTextColor={colors.mutedForeground} multiline style={[styles.input, styles.textArea, { color: colors.foreground, borderColor: colors.input, backgroundColor: colors.card }]} />
-
-          <Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Catégorie</Text>
-          <View style={styles.chipWrap}>
-            {categories.map((item) => (
-              <Pressable key={item} onPress={() => setForm((f) => ({ ...f, category: item }))} style={[styles.chip, { backgroundColor: form.category === item ? colors.blueSoft : colors.card, borderColor: form.category === item ? colors.primary : colors.border }]}>
-                <Text style={[styles.chipText, { color: form.category === item ? colors.primary : colors.mutedForeground }]}>{item}</Text>
-              </Pressable>
-            ))}
-          </View>
 
           <Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Statut</Text>
           <View style={styles.chipWrap}>

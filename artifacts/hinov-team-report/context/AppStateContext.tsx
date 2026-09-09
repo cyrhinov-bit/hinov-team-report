@@ -9,7 +9,7 @@ export type Activity = {
   date: string;
   title: string;
   description: string;
-  category: string;
+  category?: string;
   status: ActivityStatus;
 };
 
