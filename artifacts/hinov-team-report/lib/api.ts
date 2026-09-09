@@ -233,48 +233,72 @@ export async function apiRequest<T>(
       if (!password || password.length < 8) {
         throw new Error('Le mot de passe doit contenir au moins 8 caractères.');
       }
-      const initialPassword = password;
-      const createRes = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
+
+      // 1. Tenter via le serveur backend dédié (qui possède la clé service_role)
+      try {
+        const backendRes = await fetch(`${apiOrigin}/api/admin/users`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
+          },
+          body: JSON.stringify({ email, password, fullName, department, role }),
+        });
+
+        if (backendRes.ok) {
+          const backendData = await backendRes.json();
+          return backendData as T;
+        }
+
+        const errData = await backendRes.json().catch(() => ({}));
+        if (backendRes.status === 400 || backendRes.status === 409 || backendRes.status === 422) {
+          throw new Error(errData.message || errData.detail || 'Impossible de créer cet utilisateur.');
+        }
+      } catch (backendErr: any) {
+        if (backendErr?.message && !backendErr.message.includes('fetch') && !backendErr.message.includes('Failed to fetch')) {
+          throw backendErr;
+        }
+      }
+
+      // 2. Fallback Supabase Client direct (signup standard)
+      const signUpRes = await fetch(`${supabaseUrl}/auth/v1/signup`, {
         method: 'POST',
         headers: {
-          apikey: serviceRoleKey,
-          Authorization: `Bearer ${serviceRoleKey}`,
+          apikey: supabaseAnonKey,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           email: email.trim().toLowerCase(),
-          password: initialPassword,
-          email_confirm: true,
-          user_metadata: {
+          password,
+          data: {
             full_name: fullName.trim(),
             department: department.trim(),
-            role: role.trim(),
+            role: role.trim().toUpperCase(),
           },
         }),
       });
 
-      const userResult = (await createRes.json()) as {
+      const signUpData = (await signUpRes.json().catch(() => ({}))) as {
         id?: string;
         user?: { id: string };
-        message?: string;
         msg?: string;
+        message?: string;
         error_description?: string;
       };
 
-      if (!createRes.ok && !userResult.id && !userResult.user?.id) {
+      const newUserId = signUpData.id || signUpData.user?.id;
+      if (!signUpRes.ok || !newUserId) {
         throw new Error(
-          userResult.message || userResult.msg || userResult.error_description || 'Impossible de créer l’utilisateur.',
+          signUpData.message || signUpData.msg || signUpData.error_description || 'Impossible de créer l’utilisateur.',
         );
       }
 
-      const newUserId = userResult.id || userResult.user?.id;
-
-      // Mise à jour de la table profiles
+      // 3. Mise à jour de la table profiles
       await fetch(`${supabaseUrl}/rest/v1/profiles`, {
         method: 'POST',
         headers: {
-          apikey: serviceRoleKey,
-          Authorization: `Bearer ${serviceRoleKey}`,
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${options.token || supabaseAnonKey}`,
           'Content-Type': 'application/json',
           Prefer: 'resolution=merge-duplicates,return=representation',
         },
@@ -285,7 +309,7 @@ export async function apiRequest<T>(
           department: department.trim(),
           updated_at: new Date().toISOString(),
         }),
-      });
+      }).catch(() => {});
 
       return {
         id: newUserId,
@@ -304,11 +328,24 @@ export async function apiRequest<T>(
       if (updates.department !== undefined) bodyPayload.department = updates.department.trim();
       if (updates.role !== undefined) bodyPayload.role = updates.role.trim().toUpperCase();
 
+      // Tenter via le backend
+      try {
+        const bePatch = await fetch(`${apiOrigin}/api/admin/users/${encodeURIComponent(targetUserId)}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
+          },
+          body: JSON.stringify(updates),
+        });
+        if (bePatch.ok) return (await bePatch.json()) as T;
+      } catch {}
+
       const patchRes = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(targetUserId)}`, {
         method: 'PATCH',
         headers: {
-          apikey: serviceRoleKey || supabaseAnonKey,
-          Authorization: `Bearer ${serviceRoleKey || options.token}`,
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${options.token || supabaseAnonKey}`,
           'Content-Type': 'application/json',
           Prefer: 'return=representation',
         },
@@ -323,17 +360,21 @@ export async function apiRequest<T>(
 
     // D. Supprimer un utilisateur
     if (method === 'DELETE' && targetUserId) {
-      if (serviceRoleKey) {
-        await fetch(`${supabaseUrl}/auth/v1/admin/users/${encodeURIComponent(targetUserId)}`, {
+      try {
+        const beDel = await fetch(`${apiOrigin}/api/admin/users/${encodeURIComponent(targetUserId)}`, {
           method: 'DELETE',
-          headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` },
+          headers: {
+            ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
+          },
         });
-      }
+        if (beDel.ok) return { success: true } as T;
+      } catch {}
+
       await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(targetUserId)}`, {
         method: 'DELETE',
         headers: {
-          apikey: serviceRoleKey || supabaseAnonKey,
-          Authorization: `Bearer ${serviceRoleKey || options.token}`,
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${options.token || supabaseAnonKey}`,
         },
       });
       return { success: true } as T;

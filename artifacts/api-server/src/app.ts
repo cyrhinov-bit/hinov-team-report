@@ -116,11 +116,15 @@ if (foundDist) {
   logger.info({ distPath: foundDist }, "Serving static PWA frontend");
   app.use(express.static(foundDist));
   app.use((req: Request, res: Response, next: NextFunction) => {
+    if (path.extname(req.path)) {
+      return res.status(404).end();
+    }
     if (req.method === "GET" && !req.path.startsWith("/api")) {
       return res.sendFile(path.join(foundDist, "index.html"));
     }
     next();
   });
+
 }
 
 setInterval(() => {
