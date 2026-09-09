@@ -56,6 +56,32 @@ export type AppSettings = {
   updatedAt?: string;
 };
 
+export type AdminCollaboratorReport = {
+  profile: {
+    id: string;
+    fullName: string;
+    role: string;
+    department: string;
+    avatarUri?: string | null;
+    email: string;
+  };
+  report: {
+    id?: string;
+    week_start: string;
+    difficulties: string;
+    perspectives: string;
+    status: string;
+  };
+  activities: Array<{
+    id: string;
+    date: string;
+    title: string;
+    description: string;
+    category: string;
+    status: string;
+  }>;
+};
+
 export async function refreshAuthSession(refreshToken: string): Promise<{ access_token: string; refresh_token: string }> {
   const res = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
     method: 'POST',

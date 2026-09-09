@@ -689,6 +689,133 @@ router.delete("/admin/users/:id", async (req, res) => {
 });
 
 // ==========================================
+// RAPPORTS DE L'ÉQUIPE (DIRECTION & ADMIN)
+// ==========================================
+
+router.get("/admin/reports", async (req, res) => {
+  const user = await getSupabaseUser(req);
+  if (!user) {
+    res.status(401).json({ message: "Session invalide ou expirée." });
+    return;
+  }
+
+  const weekStart = typeof req.query.week_start === "string" ? req.query.week_start : "";
+  const filter = weekStart ? `&week_start=eq.${encodeURIComponent(weekStart)}` : "";
+
+  // 1. Récupérer tous les rapports
+  const reportsRes = await supabaseAdminRequest(
+    `/rest/v1/weekly_reports?select=id,user_id,week_start,difficulties,perspectives,status,created_at,updated_at${filter}&order=updated_at.desc`
+  );
+  const reports = (reportsRes.ok ? await reportsRes.json() : []) as Array<Record<string, any>>;
+
+  // 2. Récupérer les profils
+  const profilesRes = await supabaseAdminRequest(
+    "/rest/v1/profiles?select=id,full_name,role,department,avatar_url"
+  );
+  const profiles = (profilesRes.ok ? await profilesRes.json() : []) as Array<Record<string, any>>;
+  const profileMap = new Map<string, Record<string, any>>(profiles.map((p) => [p.id, p]));
+
+  // 3. Récupérer les emails auth
+  const authUsersRes = await supabaseAdminRequest("/auth/v1/admin/users?per_page=1000");
+  const authData = (authUsersRes.ok ? await authUsersRes.json() : {}) as { users?: Array<{ id: string; email?: string }> };
+  const emailMap = new Map<string, string>(
+    (authData.users || []).map((u) => [u.id, u.email || ""])
+  );
+
+  // 4. Enrichir les rapports
+  const enriched = reports.map((rep) => {
+    const prof = profileMap.get(rep.user_id) || {};
+    return {
+      ...rep,
+      fullName: prof.full_name || "Collaborateur HINOV",
+      role: prof.role || "COLLABORATEUR",
+      department: prof.department || "Général",
+      avatarUrl: prof.avatar_url || null,
+      email: emailMap.get(rep.user_id) || "",
+    };
+  });
+
+  res.json(enriched);
+});
+
+router.get("/admin/users/:id/report", async (req, res) => {
+  const user = await getSupabaseUser(req);
+  if (!user) {
+    res.status(401).json({ message: "Session invalide ou expirée." });
+    return;
+  }
+
+  const targetUserId = req.params.id;
+  const weekStart = typeof req.query.week_start === "string" ? req.query.week_start : "";
+  if (!weekStart) {
+    res.status(400).json({ message: "week_start requis." });
+    return;
+  }
+
+  // Calculer fin de semaine (lundi + 6 jours = dimanche)
+  const weekStartDate = new Date(`${weekStart}T12:00:00`);
+  const weekEndDate = new Date(weekStartDate);
+  weekEndDate.setDate(weekEndDate.getDate() + 6);
+  const weekEndStr = `${weekEndDate.getFullYear()}-${String(weekEndDate.getMonth() + 1).padStart(2, '0')}-${String(weekEndDate.getDate()).padStart(2, '0')}`;
+
+  // Récupérer le profil du collaborateur
+  const profRes = await supabaseAdminRequest(
+    `/rest/v1/profiles?id=eq.${encodeURIComponent(targetUserId)}&select=id,full_name,role,department,avatar_url`
+  );
+  const profiles = (profRes.ok ? await profRes.json() : []) as Array<Record<string, any>>;
+  const profile = profiles[0] || {
+    id: targetUserId,
+    full_name: "Collaborateur HINOV",
+    role: "COLLABORATEUR",
+    department: "Général",
+    avatar_url: null,
+  };
+
+  // Récupérer son email
+  const authUserRes = await supabaseAdminRequest(`/auth/v1/admin/users/${encodeURIComponent(targetUserId)}`);
+  const authUserData = (authUserRes.ok ? await authUserRes.json() : {}) as { email?: string };
+  const email = authUserData.email || "";
+
+  // Récupérer son rapport hebdo
+  const reportRes = await supabaseAdminRequest(
+    `/rest/v1/weekly_reports?user_id=eq.${encodeURIComponent(targetUserId)}&week_start=eq.${encodeURIComponent(weekStart)}&select=*`
+  );
+  const reports = (reportRes.ok ? await reportRes.json() : []) as Array<Record<string, any>>;
+  const report = reports[0] || null;
+
+  // Récupérer ses activités pour la semaine
+  const actsRes = await supabaseAdminRequest(
+    `/rest/v1/activities?user_id=eq.${encodeURIComponent(targetUserId)}&activity_date=gte.${encodeURIComponent(weekStart)}&activity_date=lte.${encodeURIComponent(weekEndStr)}&order=activity_date.asc,created_at.asc`
+  );
+  const activities = (actsRes.ok ? await actsRes.json() : []) as Array<Record<string, any>>;
+
+  res.json({
+    profile: {
+      id: profile.id,
+      fullName: profile.full_name || "Collaborateur HINOV",
+      role: profile.role || "COLLABORATEUR",
+      department: profile.department || "Général",
+      avatarUri: profile.avatar_url || null,
+      email,
+    },
+    report: report || {
+      week_start: weekStart,
+      difficulties: "",
+      perspectives: "",
+      status: "DRAFT",
+    },
+    activities: activities.map((a) => ({
+      id: a.id,
+      date: a.activity_date,
+      title: a.title,
+      description: a.description,
+      category: a.category,
+      status: a.status,
+    })),
+  });
+});
+
+// ==========================================
 // PARAMÈTRES DE L'APPLICATION (BRANDING & PDF)
 // ==========================================
 

@@ -20,7 +20,9 @@ import { useAppState } from '@/context/AppStateContext';
 import { useAuth } from '@/context/AuthContext';
 import { useLocalSearchParams } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
-import { AdminUser, AppSettings, apiRequest } from '@/lib/api';
+import { AdminUser, AppSettings, AdminCollaboratorReport, apiRequest } from '@/lib/api';
+import { exportAndShareReportPdf } from '@/lib/pdf';
+import { getCurrentWeekRange, dateToWeekDay, WEEK_DAYS } from '@/lib/constants';
 
 type RoleOption = 'COLLABORATEUR' | 'ADMIN' | 'SUPERADMIN';
 
@@ -47,6 +49,13 @@ export default function UsersManagementScreen() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>('TOUS');
+
+  // Collaborator Report View modal states (Director / Admin)
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [selectedReportUser, setSelectedReportUser] = useState<AdminUser | null>(null);
+  const [collaboratorReportData, setCollaboratorReportData] = useState<AdminCollaboratorReport | null>(null);
+  const [loadingReport, setLoadingReport] = useState(false);
+  const [isExportingCollaboratorPdf, setIsExportingCollaboratorPdf] = useState(false);
 
   // Modal states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -231,6 +240,68 @@ export default function UsersManagementScreen() {
     }
   };
 
+
+  // Open Collaborator Report (Director / Admin)
+  const openCollaboratorReport = async (user: AdminUser) => {
+    setSelectedReportUser(user);
+    setCollaboratorReportData(null);
+    setIsReportModalOpen(true);
+    setLoadingReport(true);
+    try {
+      const weekRange = getCurrentWeekRange();
+      const data = await apiRequest<AdminCollaboratorReport>(
+        `/api/admin/users/${user.id}/report?week_start=${weekRange.start}`,
+        { token }
+      );
+      setCollaboratorReportData(data);
+    } catch (error) {
+      Alert.alert('Erreur', error instanceof Error ? error.message : 'Impossible de récupérer le rapport de ce collaborateur.');
+    } finally {
+      setLoadingReport(false);
+    }
+  };
+
+  const handleExportCollaboratorPdf = async () => {
+    if (!collaboratorReportData) return;
+    setIsExportingCollaboratorPdf(true);
+    try {
+      const weekRange = getCurrentWeekRange();
+      const start = new Date(`${weekRange.start}T12:00:00`);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 4);
+      const weekLabel = `Du ${start.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' })} au ${end.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+
+      await exportAndShareReportPdf({
+        profile: {
+          fullName: collaboratorReportData.profile.fullName,
+          email: collaboratorReportData.profile.email,
+          department: collaboratorReportData.profile.department,
+          role: collaboratorReportData.profile.role,
+          avatarUri: collaboratorReportData.profile.avatarUri,
+        },
+        weekLabel,
+        weekStart: weekRange.start,
+        activities: collaboratorReportData.activities,
+        difficulties: collaboratorReportData.report.difficulties || '',
+        perspectives: collaboratorReportData.report.perspectives || '',
+        appSettings: {
+          id: 'default',
+          companyName,
+          pdfFooterText,
+          primaryColor,
+          secondaryColor,
+          pdfHeaderImage,
+        },
+      });
+      if (Platform.OS !== 'web') {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (error) {
+      Alert.alert('Erreur de génération', error instanceof Error ? error.message : 'Impossible de générer le document PDF.');
+    } finally {
+      setIsExportingCollaboratorPdf(false);
+    }
+  };
 
   // Open Edit Modal
   const openEdit = (user: AdminUser) => {
@@ -565,6 +636,18 @@ export default function UsersManagementScreen() {
                       <Text style={[styles.deptText, { color: colors.mutedForeground }]}>{user.department}</Text>
                     </View>
                     <View style={styles.actionsGroup}>
+                      <Pressable
+                        testID={`view-report-user-${user.id}`}
+                        onPress={() => openCollaboratorReport(user)}
+                        style={({ pressed }) => [
+                          styles.reportActionBtn,
+                          { backgroundColor: colors.purpleSoft, opacity: pressed ? 0.7 : 1 },
+                        ]}
+                      >
+                        <Feather name="file-text" size={13} color={colors.ai} />
+                        <Text style={[styles.reportActionBtnText, { color: colors.ai }]}>Rapport</Text>
+                      </Pressable>
+
                       <Pressable
                         testID={`edit-user-${user.id}`}
                         onPress={() => openEdit(user)}
@@ -1052,6 +1135,172 @@ export default function UsersManagementScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Modal : Consultation & Téléchargement du Rapport Collaborateur (Direction) */}
+      <Modal visible={isReportModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border, maxHeight: '92%' }]}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Feather name="file-text" size={16} color={colors.primary} />
+                  <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+                    Rapport de {selectedReportUser?.fullName || 'Collaborateur'}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 11, color: colors.mutedForeground, marginTop: 2 }}>
+                  {selectedReportUser?.department} • Semaine en cours
+                </Text>
+              </View>
+              <Pressable onPress={() => setIsReportModalOpen(false)} hitSlop={10}>
+                <Feather name="x" size={20} color={colors.mutedForeground} />
+              </Pressable>
+            </View>
+
+            {loadingReport ? (
+              <View style={{ padding: 40, alignItems: 'center', gap: 12 }}>
+                <ActivityIndicator color={colors.primary} size="large" />
+                <Text style={{ fontSize: 13, color: colors.mutedForeground }}>
+                  Chargement du rapport hebdomadaire...
+                </Text>
+              </View>
+            ) : collaboratorReportData ? (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {/* Statut du rapport */}
+                <View style={[styles.reportSummaryCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <View>
+                      <Text style={{ fontSize: 10, fontFamily: 'Inter_700Bold', color: colors.mutedForeground, letterSpacing: 1 }}>
+                        STATUT DU DOCUMENT
+                      </Text>
+                      <Text style={{ fontSize: 15, fontFamily: 'Inter_700Bold', color: colors.foreground, marginTop: 2 }}>
+                        {collaboratorReportData.report?.status === 'SUBMITTED' ? 'Validé & Transmis' : 'En cours de rédaction (Brouillon)'}
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.statusBadgePill,
+                        {
+                          backgroundColor:
+                            collaboratorReportData.report?.status === 'SUBMITTED' ? '#DEF7EC' : colors.orangeSoft,
+                        },
+                      ]}
+                    >
+                      <Feather
+                        name={collaboratorReportData.report?.status === 'SUBMITTED' ? 'check-circle' : 'clock'}
+                        size={13}
+                        color={collaboratorReportData.report?.status === 'SUBMITTED' ? '#03543F' : colors.warning}
+                      />
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          fontFamily: 'Inter_700Bold',
+                          color:
+                            collaboratorReportData.report?.status === 'SUBMITTED' ? '#03543F' : colors.warning,
+                          marginLeft: 4,
+                        }}
+                      >
+                        {collaboratorReportData.report?.status === 'SUBMITTED' ? 'Soumis' : 'Brouillon'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={{ fontSize: 12, color: colors.mutedForeground, marginTop: 6 }}>
+                    Total : {collaboratorReportData.activities.length} activité{collaboratorReportData.activities.length > 1 ? 's' : ''} enregistrée{collaboratorReportData.activities.length > 1 ? 's' : ''} cette semaine.
+                  </Text>
+                </View>
+
+                {/* Activités */}
+                <Text style={[styles.inputLabel, { color: colors.foreground, fontSize: 13, marginTop: 14 }]}>
+                  Activités de la semaine ({collaboratorReportData.activities.length})
+                </Text>
+                {collaboratorReportData.activities.length === 0 ? (
+                  <View style={[styles.emptyBox, { borderColor: colors.border }]}>
+                    <Text style={{ fontSize: 12, color: colors.mutedForeground, textAlign: 'center' }}>
+                      Aucune activité renseignée pour cette semaine.
+                    </Text>
+                  </View>
+                ) : (
+                  collaboratorReportData.activities.map((act) => (
+                    <View key={act.id} style={[styles.reportActivityItem, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <Text style={{ flex: 1, fontSize: 13, fontFamily: 'Inter_700Bold', color: colors.foreground }}>
+                          {act.title}
+                        </Text>
+                        <Text style={{ fontSize: 11, color: colors.mutedForeground, marginLeft: 8 }}>
+                          {act.date}
+                        </Text>
+                      </View>
+                      {act.description ? (
+                        <Text style={{ fontSize: 12, color: colors.mutedForeground, marginTop: 4 }}>
+                          {act.description}
+                        </Text>
+                      ) : null}
+                      <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+                        <View style={[styles.microBadge, { backgroundColor: colors.blueSoft }]}>
+                          <Text style={{ fontSize: 10, fontFamily: 'Inter_600SemiBold', color: colors.primary }}>
+                            {act.category || 'Général'}
+                          </Text>
+                        </View>
+                        <View style={[styles.microBadge, { backgroundColor: act.status === 'Terminée' ? '#DEF7EC' : colors.orangeSoft }]}>
+                          <Text
+                            style={{
+                              fontSize: 10,
+                              fontFamily: 'Inter_600SemiBold',
+                              color: act.status === 'Terminée' ? '#03543F' : colors.warning,
+                            }}
+                          >
+                            {act.status || 'En cours'}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  ))
+                )}
+
+                {/* Difficultés */}
+                <Text style={[styles.inputLabel, { color: colors.foreground, fontSize: 13, marginTop: 14 }]}>
+                  Difficultés & Points de blocage
+                </Text>
+                <View style={[styles.calloutCard, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
+                  <Text style={{ fontSize: 12, color: '#78350F', lineHeight: 18 }}>
+                    {collaboratorReportData.report?.difficulties?.trim() || 'Aucun point bloquant signalé.'}
+                  </Text>
+                </View>
+
+                {/* Perspectives */}
+                <Text style={[styles.inputLabel, { color: colors.foreground, fontSize: 13, marginTop: 14 }]}>
+                  Perspectives & Priorités
+                </Text>
+                <View style={[styles.calloutCard, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
+                  <Text style={{ fontSize: 12, color: '#064E3B', lineHeight: 18 }}>
+                    {collaboratorReportData.report?.perspectives?.trim() || 'Poursuite des activités en cours.'}
+                  </Text>
+                </View>
+
+                {/* Bouton Téléchargement / Exportation PDF */}
+                <Pressable
+                  testID="btn-download-collaborator-pdf"
+                  onPress={handleExportCollaboratorPdf}
+                  disabled={isExportingCollaboratorPdf}
+                  style={({ pressed }) => [
+                    styles.modalSubmitBtn,
+                    { backgroundColor: colors.primary, opacity: isExportingCollaboratorPdf ? 0.6 : pressed ? 0.8 : 1, marginTop: 20 },
+                  ]}
+                >
+                  {isExportingCollaboratorPdf ? (
+                    <ActivityIndicator color={colors.primaryForeground} size="small" />
+                  ) : (
+                    <>
+                      <Feather name="download" size={18} color={colors.primaryForeground} />
+                      <Text style={styles.modalSubmitText}>Télécharger le PDF officiel de ce collaborateur</Text>
+                    </>
+                  )}
+                </Pressable>
+              </ScrollView>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1369,6 +1618,55 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     flex: 1,
+  },
+  reportActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  reportActionBtnText: {
+    fontSize: 11,
+    fontFamily: 'Inter_700Bold',
+  },
+  reportSummaryCard: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 4,
+  },
+  statusBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  emptyBox: {
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    padding: 20,
+    marginTop: 6,
+  },
+  reportActivityItem: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 8,
+  },
+  microBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  calloutCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 6,
   },
 });
 

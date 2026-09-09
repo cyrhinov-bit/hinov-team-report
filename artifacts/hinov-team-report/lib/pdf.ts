@@ -576,14 +576,44 @@ export async function exportAndShareReportPdf(data: ReportPdfData): Promise<void
 
   if (Platform.OS === 'web') {
     // Rendu navigateur : Impression directe / Enregistrer au format PDF
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(html);
-      printWindow.document.close();
-      printWindow.focus();
-      setTimeout(() => {
-        printWindow.print();
-      }, 300);
+    try {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.open();
+        printWindow.document.write(html);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+          try {
+            printWindow.print();
+          } catch {
+            // Ignorer
+          }
+        }, 350);
+      } else {
+        // Fallback avec iframe si popup bloquée
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        document.body.appendChild(iframe);
+        iframe.contentDocument?.open();
+        iframe.contentDocument?.write(html);
+        iframe.contentDocument?.close();
+        setTimeout(() => {
+          try {
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+          } finally {
+            setTimeout(() => document.body.removeChild(iframe), 60000);
+          }
+        }, 350);
+      }
+    } catch {
+      // Fallback
     }
     return;
   }

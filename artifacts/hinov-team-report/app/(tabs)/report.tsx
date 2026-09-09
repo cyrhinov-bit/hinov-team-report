@@ -2,12 +2,14 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Image,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -19,7 +21,7 @@ import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollV
 import { useAppState } from '@/context/AppStateContext';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
-import { apiRequest, AppSettings } from '@/lib/api';
+import { apiRequest, AppSettings, AdminUser, AdminCollaboratorReport } from '@/lib/api';
 import { exportAndShareReportPdf } from '@/lib/pdf';
 import { WEEK_DAYS, getCurrentWeekRange, dateToWeekDay } from '@/lib/constants';
 
@@ -45,6 +47,14 @@ export default function ReportScreen() {
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
 
   const isSuperAdmin = profile.role?.toUpperCase() === 'SUPERADMIN';
+  const isAdmin = isSuperAdmin || profile.role?.toUpperCase() === 'ADMIN';
+
+  // Director team inspection state
+  const [teamMembers, setTeamMembers] = useState<AdminUser[]>([]);
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const [collaboratorReportData, setCollaboratorReportData] = useState<AdminCollaboratorReport | null>(null);
+  const [loadingCollaborator, setLoadingCollaborator] = useState(false);
+
   const headerBanner = appSettings?.pdfHeaderImage || null;
 
   useEffect(() => {
@@ -74,29 +84,64 @@ export default function ReportScreen() {
     apiRequest<AppSettings>('/api/app-settings', { token })
       .then((settings) => setAppSettings(settings))
       .catch(() => undefined);
-  }, [token, weekStart, setDifficulties, setPerspectives]);
+
+    if (isAdmin) {
+      apiRequest<AdminUser[]>('/api/admin/users', { token })
+        .then((users) => setTeamMembers(users))
+        .catch(() => undefined);
+    }
+  }, [token, weekStart, setDifficulties, setPerspectives, isAdmin]);
+
+  const loadCollaboratorReport = useCallback(async (memberId: string) => {
+    setSelectedMemberId(memberId);
+    setLoadingCollaborator(true);
+    try {
+      const data = await apiRequest<AdminCollaboratorReport>(
+        `/api/admin/users/${memberId}/report?week_start=${weekStart}`,
+        { token }
+      );
+      setCollaboratorReportData(data);
+      setActiveTab('preview');
+    } catch (error) {
+      Alert.alert('Erreur', error instanceof Error ? error.message : 'Impossible de charger le rapport du collaborateur.');
+    } finally {
+      setLoadingCollaborator(false);
+    }
+  }, [token, weekStart]);
+
+  const resetToMyReport = () => {
+    setSelectedMemberId(null);
+    setCollaboratorReportData(null);
+  };
+
+  const isViewingCollaborator = Boolean(selectedMemberId && collaboratorReportData);
+  const effectiveProfile = isViewingCollaborator && collaboratorReportData ? collaboratorReportData.profile : profile;
+  const effectiveActivities = isViewingCollaborator && collaboratorReportData ? collaboratorReportData.activities : activities;
+  const effectiveDifficulties = isViewingCollaborator && collaboratorReportData ? (collaboratorReportData.report?.difficulties || '') : difficulties;
+  const effectivePerspectives = isViewingCollaborator && collaboratorReportData ? (collaboratorReportData.report?.perspectives || '') : perspectives;
+  const effectiveStatus = isViewingCollaborator && collaboratorReportData ? (collaboratorReportData.report?.status || 'DRAFT') : 'DRAFT';
 
   const grouped = useMemo(() => {
-    const byDay = new Map<string, typeof activities>();
-    activities
+    const byDay = new Map<string, typeof effectiveActivities>();
+    effectiveActivities
       .filter((activity) => activity.date >= weekStart && activity.date <= weekEnd)
       .forEach((activity) => {
         const day = dateToWeekDay(activity.date);
         byDay.set(day, [...(byDay.get(day) ?? []), activity]);
       });
     return byDay;
-  }, [activities, weekStart, weekEnd]);
+  }, [effectiveActivities, weekStart, weekEnd]);
 
   const totalActivities = useMemo(() => Array.from(grouped.values()).flat().length, [grouped]);
 
   const saveReport = async () => {
-    if (!token) return;
+    if (!token || isViewingCollaborator) return;
     setIsSaving(true);
     try {
       await apiRequest('/api/reports', {
         method: 'POST',
         token,
-        body: { week_start: weekStart, difficulties, perspectives },
+        body: { week_start: weekStart, difficulties, perspectives, status: 'SUBMITTED' },
       });
     } finally {
       setIsSaving(false);
@@ -133,20 +178,22 @@ export default function ReportScreen() {
   const handleExportPdf = async () => {
     try {
       setIsExportingPdf(true);
-      await saveReport();
+      if (!isViewingCollaborator) {
+        await saveReport();
+      }
       await exportAndShareReportPdf({
         profile: {
-          fullName: profile.fullName || 'Collaborateur HINOV',
-          email: profile.email || '',
-          department: profile.department || 'Général',
-          role: profile.role || 'COLLABORATEUR',
-          avatarUri: profile.avatarUri,
+          fullName: effectiveProfile.fullName || 'Collaborateur HINOV',
+          email: effectiveProfile.email || '',
+          department: effectiveProfile.department || 'Général',
+          role: effectiveProfile.role || 'COLLABORATEUR',
+          avatarUri: effectiveProfile.avatarUri,
         },
         weekLabel,
         weekStart,
-        activities,
-        difficulties,
-        perspectives,
+        activities: effectiveActivities,
+        difficulties: effectiveDifficulties,
+        perspectives: effectivePerspectives,
         appSettings: {
           id: appSettings?.id || 'default',
           companyName,
@@ -156,7 +203,9 @@ export default function ReportScreen() {
           pdfHeaderImage: headerBanner,
         },
       });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (Platform.OS !== 'web') {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
     } catch (error) {
       Alert.alert('Erreur lors de la génération', error instanceof Error ? error.message : 'Impossible de générer le document PDF.');
     } finally {
@@ -182,18 +231,127 @@ export default function ReportScreen() {
         {/* En-tête principal */}
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.eyebrow, { color: colors.ai }]}>DOCUMENT DE LA SEMAINE</Text>
-            <Text style={[styles.title, { color: colors.foreground }]}>Mon rapport</Text>
-            <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{weekLabel}</Text>
+            <Text style={[styles.eyebrow, { color: colors.ai }]}>
+              {isViewingCollaborator ? `RAPPORT DE ${effectiveProfile.fullName?.toUpperCase()}` : 'DOCUMENT DE LA SEMAINE'}
+            </Text>
+            <Text style={[styles.title, { color: colors.foreground }]}>
+              {isViewingCollaborator ? effectiveProfile.fullName : 'Mon rapport'}
+            </Text>
+            <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+              {isViewingCollaborator ? `${effectiveProfile.role} • ${effectiveProfile.department}` : weekLabel}
+            </Text>
           </View>
           <View style={styles.headerActions}>
-            <Image source={profile.avatarUri ? { uri: profile.avatarUri } : logo} style={[styles.headerAvatar, { borderColor: colors.border }]} />
-            <View style={[styles.statusPill, { backgroundColor: colors.orangeSoft }]}>
-              <View style={[styles.statusDot, { backgroundColor: colors.warning }]} />
-              <Text style={[styles.statusText, { color: colors.warning }]}>Brouillon</Text>
+            <Image source={effectiveProfile.avatarUri ? { uri: effectiveProfile.avatarUri } : logo} style={[styles.headerAvatar, { borderColor: colors.border }]} />
+            <View
+              style={[
+                styles.statusPill,
+                {
+                  backgroundColor: effectiveStatus === 'SUBMITTED' ? '#DEF7EC' : colors.orangeSoft,
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.statusDot,
+                  { backgroundColor: effectiveStatus === 'SUBMITTED' ? '#03543F' : colors.warning },
+                ]}
+              />
+              <Text
+                style={[
+                  styles.statusText,
+                  { color: effectiveStatus === 'SUBMITTED' ? '#03543F' : colors.warning },
+                ]}
+              >
+                {effectiveStatus === 'SUBMITTED' ? 'Validé / Transmis' : 'Brouillon'}
+              </Text>
             </View>
           </View>
         </View>
+
+        {/* Sélecteur Collaborateurs pour Direction / Admin */}
+        {isAdmin && teamMembers.length > 0 ? (
+          <View style={[styles.teamSwitcherSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.teamSwitcherHeader}>
+              <Feather name="users" size={13} color={colors.primary} />
+              <Text style={[styles.teamSwitcherLabel, { color: colors.mutedForeground }]}>
+                SÉLECTIONNER UN RAPPORT DE L'ÉQUIPE (DIRECTION)
+              </Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.teamPillsScroll}>
+              <Pressable
+                onPress={resetToMyReport}
+                style={[
+                  styles.teamPill,
+                  {
+                    backgroundColor: !selectedMemberId ? colors.primary : colors.background,
+                    borderColor: !selectedMemberId ? colors.primary : colors.border,
+                  },
+                ]}
+              >
+                <Feather
+                  name="user"
+                  size={12}
+                  color={!selectedMemberId ? colors.primaryForeground : colors.foreground}
+                />
+                <Text
+                  style={[
+                    styles.teamPillText,
+                    { color: !selectedMemberId ? colors.primaryForeground : colors.foreground, fontWeight: !selectedMemberId ? '700' : '500' },
+                  ]}
+                >
+                  Mon rapport
+                </Text>
+              </Pressable>
+
+              {teamMembers.map((member) => {
+                const isSelected = selectedMemberId === member.id;
+                return (
+                  <Pressable
+                    key={member.id}
+                    onPress={() => loadCollaboratorReport(member.id)}
+                    style={[
+                      styles.teamPill,
+                      {
+                        backgroundColor: isSelected ? colors.primary : colors.background,
+                        borderColor: isSelected ? colors.primary : colors.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.teamPillText,
+                        { color: isSelected ? colors.primaryForeground : colors.foreground, fontWeight: isSelected ? '700' : '500' },
+                      ]}
+                    >
+                      {member.fullName} ({member.department})
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        ) : null}
+
+        {isViewingCollaborator ? (
+          <View style={[styles.viewingCollaboratorBanner, { backgroundColor: colors.blueSoft, borderColor: colors.primary }]}>
+            <Feather name="eye" size={16} color={colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.viewingBannerTitle, { color: colors.primary }]}>
+                Aperçu du rapport de {effectiveProfile.fullName}
+              </Text>
+              <Text style={[styles.viewingBannerSub, { color: colors.mutedForeground }]}>
+                Vous visualisez le rapport hebdomadaire transmis par ce collaborateur.
+              </Text>
+            </View>
+            <Pressable
+              onPress={resetToMyReport}
+              style={[styles.backToMineBtn, { backgroundColor: colors.primary }]}
+            >
+              <Text style={styles.backToMineText}>Mon rapport</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         {/* Sélecteur de Mode : Rédaction vs Aperçu Direct PDF */}
         <View style={[styles.tabBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -970,4 +1128,70 @@ const styles = StyleSheet.create({
 
   /* Action Buttons dans l'aperçu */
   previewActionStack: { marginTop: 18, gap: 10, width: '100%' },
+
+  /* Team switcher section for Director / Admin */
+  teamSwitcherSection: {
+    width: '100%',
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 14,
+  },
+  teamSwitcherHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  teamSwitcherLabel: {
+    fontSize: 10,
+    fontFamily: 'Inter_700Bold',
+    letterSpacing: 1,
+  },
+  teamPillsScroll: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  teamPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  teamPillText: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+  },
+  viewingCollaboratorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 14,
+    width: '100%',
+  },
+  viewingBannerTitle: {
+    fontSize: 13,
+    fontFamily: 'Inter_700Bold',
+  },
+  viewingBannerSub: {
+    fontSize: 11,
+    fontFamily: 'Inter_400Regular',
+    marginTop: 2,
+  },
+  backToMineBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  backToMineText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontFamily: 'Inter_700Bold',
+  },
 });
