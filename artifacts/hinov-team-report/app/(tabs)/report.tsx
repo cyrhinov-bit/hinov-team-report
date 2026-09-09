@@ -21,7 +21,7 @@ import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollV
 import { useAppState } from '@/context/AppStateContext';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
-import { apiRequest, AppSettings, AdminUser, AdminCollaboratorReport, ReportHistoryItem } from '@/lib/api';
+import { apiRequest, AppSettings, ReportHistoryItem } from '@/lib/api';
 import { exportAndShareReportPdf } from '@/lib/pdf';
 import { WEEK_DAYS, getCurrentWeekRange, dateToWeekDay } from '@/lib/constants';
 
@@ -54,25 +54,15 @@ export default function ReportScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
+  const [myReportStatus, setMyReportStatus] = useState<'DRAFT' | 'SUBMITTED'>('DRAFT');
 
   const isSuperAdmin = profile.role?.toUpperCase() === 'SUPERADMIN';
-  const isAdmin = isSuperAdmin || profile.role?.toUpperCase() === 'ADMIN';
 
-  // Director team inspection state
-  const [teamMembers, setTeamMembers] = useState<AdminUser[]>([]);
-  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
-  const [collaboratorReportData, setCollaboratorReportData] = useState<AdminCollaboratorReport | null>(null);
-  const [loadingCollaborator, setLoadingCollaborator] = useState(false);
-
-  // History & Filters state
-  const [historyScope, setHistoryScope] = useState<'TEAM' | 'MINE'>('TEAM');
+  // Historique personnel & Filtres
   const [historyList, setHistoryList] = useState<ReportHistoryItem[]>([]);
-  const [historyMyList, setHistoryMyList] = useState<ReportHistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'SUBMITTED' | 'DRAFT'>('ALL');
-  const [deptFilter, setDeptFilter] = useState<string>('ALL');
-  const [memberFilter, setMemberFilter] = useState<string>('ALL');
   const [downloadingReportId, setDownloadingReportId] = useState<string | null>(null);
 
   const headerBanner = appSettings?.pdfHeaderImage || null;
@@ -92,31 +82,28 @@ export default function ReportScreen() {
     if (!token) return;
     setLoadingHistory(true);
     try {
-      if (isAdmin) {
-        const [teamData, myData] = await Promise.all([
-          apiRequest<ReportHistoryItem[]>('/api/admin/reports', { token }).catch(() => []),
-          apiRequest<ReportHistoryItem[]>('/api/reports/history', { token }).catch(() => []),
-        ]);
-        setHistoryList(Array.isArray(teamData) ? teamData : []);
-        setHistoryMyList(Array.isArray(myData) ? myData : []);
-      } else {
-        const data = await apiRequest<ReportHistoryItem[]>('/api/reports/history', { token });
-        setHistoryList(Array.isArray(data) ? data : []);
-      }
+      const data = await apiRequest<ReportHistoryItem[]>('/api/reports/history', { token });
+      setHistoryList(Array.isArray(data) ? data : []);
     } catch (err) {
       console.warn('Erreur chargement historique:', err);
     } finally {
       setLoadingHistory(false);
     }
-  }, [token, isAdmin]);
+  }, [token]);
 
   useEffect(() => {
     if (!token) return;
-    apiRequest<{ difficulties?: string; perspectives?: string } | null>(`/api/reports?week_start=${weekStart}`, { token })
+    apiRequest<{ difficulties?: string; perspectives?: string; status?: string } | null>(
+      `/api/reports?week_start=${weekStart}`,
+      { token }
+    )
       .then((report) => {
         if (!report) return;
         setDifficulties(report.difficulties ?? '');
         setPerspectives(report.perspectives ?? '');
+        if (report.status === 'SUBMITTED') {
+          setMyReportStatus('SUBMITTED');
+        }
       })
       .catch(() => undefined);
 
@@ -124,46 +111,18 @@ export default function ReportScreen() {
       .then((settings) => setAppSettings(settings))
       .catch(() => undefined);
 
-    if (isAdmin) {
-      apiRequest<AdminUser[]>('/api/admin/users', { token })
-        .then((users) => setTeamMembers(users))
-        .catch(() => undefined);
-    }
-
     fetchHistory();
-  }, [token, weekStart, setDifficulties, setPerspectives, isAdmin, fetchHistory]);
-
-  const departmentOptions = useMemo(() => {
-    const set = new Set<string>();
-    teamMembers.forEach((m) => { if (m.department) set.add(m.department); });
-    historyList.forEach((h) => { if (h.department) set.add(h.department); });
-    return Array.from(set);
-  }, [teamMembers, historyList]);
-
-  const currentSourceList = useMemo(() => {
-    if (isAdmin && historyScope === 'MINE') {
-      return historyMyList;
-    }
-    return historyList;
-  }, [isAdmin, historyScope, historyMyList, historyList]);
+  }, [token, weekStart, setDifficulties, setPerspectives, fetchHistory]);
 
   const filteredHistory = useMemo(() => {
-    return currentSourceList.filter((item) => {
-      // Pour l'historique d'équipe de la Direction, seuls les rapports soumis sont affichés
-      if (isAdmin && historyScope === 'TEAM' && item.status !== 'SUBMITTED') {
-        return false;
-      }
-
+    return historyList.filter((item) => {
       // 1. Recherche textuelle
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
-        const matchesName = item.fullName?.toLowerCase().includes(q);
-        const matchesEmail = item.email?.toLowerCase().includes(q);
-        const matchesDept = item.department?.toLowerCase().includes(q);
         const matchesDiff = item.difficulties?.toLowerCase().includes(q);
         const matchesPersp = item.perspectives?.toLowerCase().includes(q);
         const matchesWeek = item.weekStart?.toLowerCase().includes(q);
-        if (!matchesName && !matchesEmail && !matchesDept && !matchesDiff && !matchesPersp && !matchesWeek) {
+        if (!matchesDiff && !matchesPersp && !matchesWeek) {
           return false;
         }
       }
@@ -173,69 +132,25 @@ export default function ReportScreen() {
         return false;
       }
 
-      // Si scope personnel, pas de filtre département/collaborateur
-      if (isAdmin && historyScope === 'MINE') {
-        return true;
-      }
-
-      // 3. Filtre département
-      if (deptFilter !== 'ALL' && item.department !== deptFilter) {
-        return false;
-      }
-
-      // 4. Filtre collaborateur
-      if (memberFilter !== 'ALL' && item.userId !== memberFilter) {
-        return false;
-      }
-
       return true;
     });
-  }, [currentSourceList, searchQuery, statusFilter, deptFilter, memberFilter, isAdmin, historyScope]);
-
-  const loadCollaboratorReport = useCallback(async (memberId: string) => {
-    setSelectedMemberId(memberId);
-    setLoadingCollaborator(true);
-    try {
-      const data = await apiRequest<AdminCollaboratorReport>(
-        `/api/admin/users/${memberId}/report?week_start=${weekStart}`,
-        { token }
-      );
-      setCollaboratorReportData(data);
-      setActiveTab('preview');
-    } catch (error) {
-      Alert.alert('Erreur', error instanceof Error ? error.message : 'Impossible de charger le rapport du collaborateur.');
-    } finally {
-      setLoadingCollaborator(false);
-    }
-  }, [token, weekStart]);
-
-  const resetToMyReport = () => {
-    setSelectedMemberId(null);
-    setCollaboratorReportData(null);
-  };
-
-  const isViewingCollaborator = Boolean(selectedMemberId && collaboratorReportData);
-  const effectiveProfile = isViewingCollaborator && collaboratorReportData ? collaboratorReportData.profile : profile;
-  const effectiveActivities = isViewingCollaborator && collaboratorReportData ? collaboratorReportData.activities : activities;
-  const effectiveDifficulties = isViewingCollaborator && collaboratorReportData ? (collaboratorReportData.report?.difficulties || '') : difficulties;
-  const effectivePerspectives = isViewingCollaborator && collaboratorReportData ? (collaboratorReportData.report?.perspectives || '') : perspectives;
-  const effectiveStatus = isViewingCollaborator && collaboratorReportData ? (collaboratorReportData.report?.status || 'DRAFT') : 'DRAFT';
+  }, [historyList, searchQuery, statusFilter]);
 
   const grouped = useMemo(() => {
-    const byDay = new Map<string, typeof effectiveActivities>();
-    effectiveActivities
+    const byDay = new Map<string, typeof activities>();
+    activities
       .filter((activity) => activity.date >= weekStart && activity.date <= weekEnd)
       .forEach((activity) => {
         const day = dateToWeekDay(activity.date);
         byDay.set(day, [...(byDay.get(day) ?? []), activity]);
       });
     return byDay;
-  }, [effectiveActivities, weekStart, weekEnd]);
+  }, [activities, weekStart, weekEnd]);
 
   const totalActivities = useMemo(() => Array.from(grouped.values()).flat().length, [grouped]);
 
   const saveReport = async () => {
-    if (!token || isViewingCollaborator) return;
+    if (!token) return;
     setIsSaving(true);
     try {
       await apiRequest('/api/reports', {
@@ -243,6 +158,14 @@ export default function ReportScreen() {
         token,
         body: { week_start: weekStart, difficulties, perspectives, status: 'SUBMITTED' },
       });
+      setMyReportStatus('SUBMITTED');
+      fetchHistory();
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      Alert.alert('Rapport soumis !', 'Votre rapport hebdomadaire a été transmis avec succès à la Direction.');
+    } catch (e) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de sauvegarder le rapport.');
     } finally {
       setIsSaving(false);
     }
@@ -278,22 +201,19 @@ export default function ReportScreen() {
   const handleExportPdf = async () => {
     try {
       setIsExportingPdf(true);
-      if (!isViewingCollaborator) {
-        await saveReport();
-      }
       await exportAndShareReportPdf({
         profile: {
-          fullName: effectiveProfile.fullName || 'Collaborateur HINOV',
-          email: effectiveProfile.email || '',
-          department: effectiveProfile.department || 'Général',
-          role: effectiveProfile.role || 'COLLABORATEUR',
-          avatarUri: effectiveProfile.avatarUri,
+          fullName: profile.fullName || 'Collaborateur HINOV',
+          email: profile.email || '',
+          department: profile.department || 'Général',
+          role: profile.role || 'COLLABORATEUR',
+          avatarUri: profile.avatarUri,
         },
         weekLabel,
         weekStart,
-        activities: effectiveActivities,
-        difficulties: effectiveDifficulties,
-        perspectives: effectivePerspectives,
+        activities,
+        difficulties,
+        perspectives,
         appSettings: {
           id: appSettings?.id || 'default',
           companyName,
@@ -313,113 +233,44 @@ export default function ReportScreen() {
     }
   };
 
-  const handlePreviewHistoricReport = async (item: ReportHistoryItem) => {
-    const isOtherUser = isAdmin && ((item.email && item.email !== profile.email) || (item.fullName && item.fullName !== profile.fullName));
-    if (isOtherUser) {
-      setSelectedMemberId(item.userId);
-      setLoadingCollaborator(true);
-      try {
-        const data = await apiRequest<AdminCollaboratorReport>(
-          `/api/admin/users/${item.userId}/report?week_start=${item.weekStart}`,
-          { token }
-        );
-        setCollaboratorReportData(data);
-        setActiveTab('preview');
-      } catch (error) {
-        Alert.alert('Erreur', error instanceof Error ? error.message : 'Impossible de charger ce rapport.');
-      } finally {
-        setLoadingCollaborator(false);
-      }
-    } else {
-      setSelectedMemberId(null);
-      setCollaboratorReportData(null);
-      try {
-        setLoadingCollaborator(true);
-        const rep = await apiRequest<{ difficulties?: string; perspectives?: string } | null>(
-          `/api/reports?week_start=${item.weekStart}`,
-          { token }
-        );
-        if (rep) {
-          setDifficulties(rep.difficulties ?? '');
-          setPerspectives(rep.perspectives ?? '');
-        }
-        setActiveTab('preview');
-      } catch {
-        Alert.alert('Erreur', 'Impossible de charger ce rapport.');
-      } finally {
-        setLoadingCollaborator(false);
-      }
-    }
-  };
-
   const handleDownloadHistoricReport = async (item: ReportHistoryItem) => {
     setDownloadingReportId(item.id);
     try {
       const itemWeekLabel = formatWeekLabel(item.weekStart);
-      const isOtherUser = isAdmin && ((item.email && item.email !== profile.email) || (item.fullName && item.fullName !== profile.fullName));
-      if (isOtherUser) {
-        const data = await apiRequest<AdminCollaboratorReport>(
-          `/api/admin/users/${item.userId}/report?week_start=${item.weekStart}`,
-          { token }
-        );
-        await exportAndShareReportPdf({
-          profile: {
-            fullName: data.profile.fullName || item.fullName || 'Collaborateur HINOV',
-            email: data.profile.email || item.email || '',
-            department: data.profile.department || item.department || 'Général',
-            role: data.profile.role || item.role || 'COLLABORATEUR',
-            avatarUri: data.profile.avatarUri || item.avatarUrl,
-          },
-          weekLabel: itemWeekLabel,
-          weekStart: item.weekStart,
-          activities: data.activities,
-          difficulties: data.report?.difficulties || item.difficulties,
-          perspectives: data.report?.perspectives || item.perspectives,
-          appSettings: {
-            id: appSettings?.id || 'default',
-            companyName,
-            pdfFooterText: appSettings?.pdfFooterText || "HINOV Team Report - Document Confidentiel d'Entreprise",
-            primaryColor,
-            secondaryColor: appSettings?.secondaryColor || '#4F46E5',
-            pdfHeaderImage: headerBanner,
-          },
-        });
-      } else {
-        const wStart = item.weekStart;
-        const startD = new Date(`${wStart}T12:00:00`);
-        const endD = new Date(startD);
-        endD.setDate(endD.getDate() + 4);
-        const endStr = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-${String(endD.getDate()).padStart(2, '0')}`;
-        const weekActs = activities.filter((a) => a.date >= wStart && a.date <= endStr);
+      const wStart = item.weekStart;
+      const startD = new Date(`${wStart}T12:00:00`);
+      const endD = new Date(startD);
+      endD.setDate(endD.getDate() + 4);
+      const endStr = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-${String(endD.getDate()).padStart(2, '0')}`;
+      const weekActs = activities.filter((a) => a.date >= wStart && a.date <= endStr);
 
-        await exportAndShareReportPdf({
-          profile: {
-            fullName: profile.fullName || 'Collaborateur HINOV',
-            email: profile.email || '',
-            department: profile.department || 'Général',
-            role: profile.role || 'COLLABORATEUR',
-            avatarUri: profile.avatarUri,
-          },
-          weekLabel: itemWeekLabel,
-          weekStart: item.weekStart,
-          activities: weekActs,
-          difficulties: item.difficulties,
-          perspectives: item.perspectives,
-          appSettings: {
-            id: appSettings?.id || 'default',
-            companyName,
-            pdfFooterText: appSettings?.pdfFooterText || "HINOV Team Report - Document Confidentiel d'Entreprise",
-            primaryColor,
-            secondaryColor: appSettings?.secondaryColor || '#4F46E5',
-            pdfHeaderImage: headerBanner,
-          },
-        });
-      }
+      await exportAndShareReportPdf({
+        profile: {
+          fullName: profile.fullName || 'Collaborateur HINOV',
+          email: profile.email || '',
+          department: profile.department || 'Général',
+          role: profile.role || 'COLLABORATEUR',
+          avatarUri: profile.avatarUri,
+        },
+        weekLabel: itemWeekLabel,
+        weekStart: item.weekStart,
+        activities: weekActs,
+        difficulties: item.difficulties,
+        perspectives: item.perspectives,
+        appSettings: {
+          id: appSettings?.id || 'default',
+          companyName,
+          pdfFooterText: appSettings?.pdfFooterText || "HINOV Team Report - Document Confidentiel d'Entreprise",
+          primaryColor,
+          secondaryColor: appSettings?.secondaryColor || '#4F46E5',
+          pdfHeaderImage: headerBanner,
+        },
+      });
       if (Platform.OS !== 'web') {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (err) {
-      Alert.alert('Erreur', err instanceof Error ? err.message : 'Impossible de télécharger ce PDF.');
+      Alert.alert('Erreur', err instanceof Error ? err.message : 'Impossible de télécharger ce rapport.');
     } finally {
       setDownloadingReportId(null);
     }
@@ -428,142 +279,54 @@ export default function ReportScreen() {
   return (
     <KeyboardAwareScrollViewCompat
       style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={{
-        paddingTop: insets.top + 18,
-        paddingBottom: insets.bottom + 120,
-        paddingHorizontal: isTabletOrDesktop ? 28 : 14,
-        alignItems: 'center',
-      }}
-      bottomOffset={24}
-      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={[
+        styles.content,
+        {
+          paddingTop: Math.max(insets.top + 8, 16),
+          paddingBottom: insets.bottom + 90,
+          paddingHorizontal: isTabletOrDesktop ? 32 : isSmall ? 12 : 16,
+        },
+      ]}
     >
-      {/* Conteneur principal centré responsive */}
       <View style={[styles.mainWrapper, { maxWidth: isTabletOrDesktop ? 820 : '100%' }]}>
         
-        {/* En-tête principal */}
+        {/* En-tête principal : Mon Rapport Personnel */}
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.eyebrow, { color: colors.ai }]}>
-              {isViewingCollaborator ? `RAPPORT DE ${effectiveProfile.fullName?.toUpperCase()}` : 'DOCUMENT DE LA SEMAINE'}
-            </Text>
-            <Text style={[styles.title, { color: colors.foreground }]}>
-              {isViewingCollaborator ? effectiveProfile.fullName : 'Mon rapport'}
-            </Text>
-            <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-              {isViewingCollaborator ? `${effectiveProfile.role} • ${effectiveProfile.department}` : weekLabel}
-            </Text>
+            <Text style={[styles.eyebrow, { color: colors.ai }]}>DOCUMENT DE LA SEMAINE</Text>
+            <Text style={[styles.title, { color: colors.foreground }]}>Mon rapport</Text>
+            <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{weekLabel}</Text>
           </View>
           <View style={styles.headerActions}>
-            <Image source={effectiveProfile.avatarUri ? { uri: effectiveProfile.avatarUri } : logo} style={[styles.headerAvatar, { borderColor: colors.border }]} />
+            <Image
+              source={profile.avatarUri ? { uri: profile.avatarUri } : logo}
+              style={[styles.headerAvatar, { borderColor: colors.border }]}
+            />
             <View
               style={[
                 styles.statusPill,
                 {
-                  backgroundColor: effectiveStatus === 'SUBMITTED' ? '#DEF7EC' : colors.orangeSoft,
+                  backgroundColor: myReportStatus === 'SUBMITTED' ? '#DEF7EC' : colors.orangeSoft,
                 },
               ]}
             >
               <View
                 style={[
                   styles.statusDot,
-                  { backgroundColor: effectiveStatus === 'SUBMITTED' ? '#03543F' : colors.warning },
+                  { backgroundColor: myReportStatus === 'SUBMITTED' ? '#03543F' : colors.warning },
                 ]}
               />
               <Text
                 style={[
                   styles.statusText,
-                  { color: effectiveStatus === 'SUBMITTED' ? '#03543F' : colors.warning },
+                  { color: myReportStatus === 'SUBMITTED' ? '#03543F' : colors.warning },
                 ]}
               >
-                {effectiveStatus === 'SUBMITTED' ? 'Validé / Transmis' : 'Brouillon'}
+                {myReportStatus === 'SUBMITTED' ? 'Validé / Transmis' : 'Brouillon'}
               </Text>
             </View>
           </View>
         </View>
-
-        {/* Sélecteur Collaborateurs pour Direction / Admin */}
-        {isAdmin && teamMembers.length > 0 && activeTab !== 'history' ? (
-          <View style={[styles.teamSwitcherSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.teamSwitcherHeader}>
-              <Feather name="users" size={13} color={colors.primary} />
-              <Text style={[styles.teamSwitcherLabel, { color: colors.mutedForeground }]}>
-                SÉLECTIONNER UN RAPPORT DE L'ÉQUIPE (DIRECTION)
-              </Text>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.teamPillsScroll}>
-              <Pressable
-                onPress={resetToMyReport}
-                style={[
-                  styles.teamPill,
-                  {
-                    backgroundColor: !selectedMemberId ? colors.primary : colors.background,
-                    borderColor: !selectedMemberId ? colors.primary : colors.border,
-                  },
-                ]}
-              >
-                <Feather
-                  name="user"
-                  size={12}
-                  color={!selectedMemberId ? colors.primaryForeground : colors.foreground}
-                />
-                <Text
-                  style={[
-                    styles.teamPillText,
-                    { color: !selectedMemberId ? colors.primaryForeground : colors.foreground, fontWeight: !selectedMemberId ? '700' : '500' },
-                  ]}
-                >
-                  Mon rapport
-                </Text>
-              </Pressable>
-
-              {teamMembers.map((member) => {
-                const isSelected = selectedMemberId === member.id;
-                return (
-                  <Pressable
-                    key={member.id}
-                    onPress={() => loadCollaboratorReport(member.id)}
-                    style={[
-                      styles.teamPill,
-                      {
-                        backgroundColor: isSelected ? colors.primary : colors.background,
-                        borderColor: isSelected ? colors.primary : colors.border,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.teamPillText,
-                        { color: isSelected ? colors.primaryForeground : colors.foreground, fontWeight: isSelected ? '700' : '500' },
-                      ]}
-                    >
-                      {member.fullName} ({member.department})
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
-        ) : null}
-
-        {isViewingCollaborator && activeTab !== 'history' ? (
-          <View style={[styles.viewingCollaboratorBanner, { backgroundColor: colors.blueSoft, borderColor: colors.primary }]}>
-            <Feather name="eye" size={16} color={colors.primary} />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.viewingBannerTitle, { color: colors.primary }]}>
-                Aperçu du rapport de {effectiveProfile.fullName}
-              </Text>
-              <Text style={[styles.viewingBannerSub, { color: colors.mutedForeground }]}>
-                Vous visualisez le rapport hebdomadaire transmis par ce collaborateur.
-              </Text>
-            </View>
-            <Pressable
-              onPress={resetToMyReport}
-              style={[styles.backToMineBtn, { backgroundColor: colors.primary }]}
-            >
-              <Text style={styles.backToMineText}>Mon rapport</Text>
-            </Pressable>
-          </View>
-        ) : null}
 
         {/* Sélecteur de Mode : 3 Onglets (Rédaction, Aperçu Direct, Historique) */}
         <View style={[styles.tabBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -698,210 +461,251 @@ export default function ReportScreen() {
               </Pressable>
             ) : null}
 
-            <View style={[styles.progressCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={styles.progressTop}>
-                <View>
-                  <Text style={[styles.progressLabel, { color: colors.mutedForeground }]}>ÉTAT DE PRÉPARATION</Text>
-                  <Text style={[styles.progressTitle, { color: colors.foreground }]}>
-                    {totalActivities} activité{totalActivities > 1 ? 's' : ''} intégrée{totalActivities > 1 ? 's' : ''}
+            {/* Section 1 : Activités de la semaine (Lecture seule synthétique) */}
+            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={styles.cardHeaderRow}>
+                <View style={[styles.cardIconWrap, { backgroundColor: colors.blueSoft }]}>
+                  <Feather name="check-square" size={18} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Activités de la semaine</Text>
+                  <Text style={[styles.sectionSubtitle, { color: colors.mutedForeground }]}>
+                    {totalActivities} activité{totalActivities > 1 ? 's' : ''} enregistrée{totalActivities > 1 ? 's' : ''}
                   </Text>
                 </View>
-                <View style={[styles.reportIcon, { backgroundColor: colors.purpleSoft }]}>
-                  <Feather name="check-circle" size={19} color={colors.ai} />
+                <Pressable
+                  testID="edit-activities-btn"
+                  onPress={() => router.push('/activities')}
+                  style={({ pressed }) => [
+                    styles.editActivitiesBtn,
+                    { backgroundColor: colors.blueSoft, opacity: pressed ? 0.7 : 1 },
+                  ]}
+                >
+                  <Feather name="plus" size={14} color={colors.primary} />
+                  <Text style={[styles.editActivitiesText, { color: colors.primary }]}>Gérer</Text>
+                </Pressable>
+              </View>
+
+              {grouped.size === 0 ? (
+                <View style={[styles.emptyBox, { borderColor: colors.border }]}>
+                  <Feather name="inbox" size={32} color={colors.mutedForeground} style={{ marginBottom: 8 }} />
+                  <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                    Aucune activité enregistrée pour cette semaine.
+                  </Text>
+                  <Pressable
+                    testID="empty-add-activity-btn"
+                    onPress={() => router.push('/activities')}
+                    style={[styles.emptyAddBtn, { backgroundColor: colors.primary }]}
+                  >
+                    <Feather name="plus" size={14} color={colors.primaryForeground} />
+                    <Text style={[styles.emptyAddBtnText, { color: colors.primaryForeground }]}>
+                      Ajouter une activité
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={styles.daysList}>
+                  {WEEK_DAYS.filter((day) => grouped.has(day)).map((day) => {
+                    const dayActs = grouped.get(day) ?? [];
+                    return (
+                      <View key={day} style={[styles.dayCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                        <View style={styles.dayCardHeader}>
+                          <Text style={[styles.dayTitle, { color: colors.foreground }]}>{day}</Text>
+                          <View style={[styles.dayBadge, { backgroundColor: colors.blueSoft }]}>
+                            <Text style={[styles.dayBadgeText, { color: colors.primary }]}>
+                              {dayActs.length}
+                            </Text>
+                          </View>
+                        </View>
+                        {dayActs.map((act) => (
+                          <View key={act.id} style={styles.activityItem}>
+                            <View style={[styles.activityBullet, { backgroundColor: colors.primary }]} />
+                            <View style={{ flex: 1 }}>
+                              <Text style={[styles.activityTitle, { color: colors.foreground }]}>{act.title}</Text>
+                              {act.description ? (
+                                <Text style={[styles.activityDesc, { color: colors.mutedForeground }]}>
+                                  {act.description}
+                                </Text>
+                              ) : null}
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+
+            {/* Section 2 : Difficultés rencontrées */}
+            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={styles.cardHeaderRow}>
+                <View style={[styles.cardIconWrap, { backgroundColor: colors.orangeSoft }]}>
+                  <Feather name="alert-triangle" size={18} color={colors.warning} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Difficultés rencontrées</Text>
+                  <Text style={[styles.sectionSubtitle, { color: colors.mutedForeground }]}>
+                    Points bloquants ou vigilances de la semaine
+                  </Text>
                 </View>
               </View>
-              <View style={[styles.track, { backgroundColor: colors.muted }]}>
-                <View style={[styles.trackFill, { backgroundColor: colors.ai, width: difficulties || perspectives ? '78%' : '45%' }]} />
-              </View>
-              <Text style={[styles.progressHint, { color: colors.mutedForeground }]}>
-                {difficulties || perspectives ? 'Presque prêt à être relu' : 'Ajoutez vos difficultés et perspectives'}
-              </Text>
+              <TextInput
+                testID="difficulties-input"
+                value={difficulties}
+                onChangeText={setDifficulties}
+                placeholder="Ex : Retard sur la validation du cahier des charges client, indisponibilité temporaire du serveur..."
+                placeholderTextColor={colors.mutedForeground}
+                multiline
+                numberOfLines={4}
+                style={[
+                  styles.textArea,
+                  { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border },
+                ]}
+              />
             </View>
 
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Activités par jour</Text>
-            {grouped.size === 0 ? (
-              <View style={[styles.dayCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[styles.emptyDay, { color: colors.mutedForeground }]}>
-                  Aucune activité enregistrée cette semaine. Ajoutez-en via l'onglet Activités.
-                </Text>
+            {/* Section 3 : Perspectives & Priorités */}
+            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={styles.cardHeaderRow}>
+                <View style={[styles.cardIconWrap, { backgroundColor: colors.greenSoft }]}>
+                  <Feather name="target" size={18} color={colors.success} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Perspectives</Text>
+                  <Text style={[styles.sectionSubtitle, { color: colors.mutedForeground }]}>
+                    Priorités et objectifs pour la semaine prochaine
+                  </Text>
+                </View>
               </View>
-            ) : (
-              WEEK_DAYS.filter((day) => grouped.has(day)).map((day) => {
-                const dayActivities = grouped.get(day) ?? [];
-                return (
-                  <View key={day} style={[styles.dayCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <View style={styles.dayHeader}>
-                      <Text style={[styles.dayName, { color: colors.foreground }]}>{day}</Text>
-                      <Text style={[styles.dayCount, { color: colors.primary }]}>
-                        {dayActivities.length} activité{dayActivities.length > 1 ? 's' : ''}
-                      </Text>
-                    </View>
-                    {dayActivities.map((activity) => (
-                      <View key={activity.id} style={styles.reportActivity}>
-                        <View style={[styles.reportBullet, { backgroundColor: colors.primary }]} />
-                        <View style={styles.reportActivityCopy}>
-                          <Text style={[styles.reportActivityTitle, { color: colors.foreground }]}>{activity.title}</Text>
-                          <Text style={[styles.reportActivityDescription, { color: colors.mutedForeground }]}>
-                            {activity.description}
-                          </Text>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                );
-              })
-            )}
+              <TextInput
+                testID="perspectives-input"
+                value={perspectives}
+                onChangeText={setPerspectives}
+                placeholder="Ex : Finaliser la refonte du module de facturation, animer la revue d'équipe mardi..."
+                placeholderTextColor={colors.mutedForeground}
+                multiline
+                numberOfLines={4}
+                style={[
+                  styles.textArea,
+                  { backgroundColor: colors.background, color: colors.foreground, borderColor: colors.border },
+                ]}
+              />
+            </View>
 
-            <View style={styles.sectionRow}>
-              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Bilan de la semaine</Text>
+            {/* Actions & Amélioration IA */}
+            <View style={styles.actionSection}>
               <Pressable
-                testID="improve-report"
+                testID="ai-improve-btn"
                 onPress={improveWriting}
                 disabled={isImproving}
-                style={({ pressed }) => [styles.aiButton, { backgroundColor: colors.purpleSoft, opacity: pressed ? 0.75 : 1 }]}
-              >
-                <Feather name="zap" size={14} color={colors.ai} />
-                <Text style={[styles.aiButtonText, { color: colors.ai }]}>{isImproving ? 'Analyse…' : 'Améliorer'}</Text>
-              </Pressable>
-            </View>
-            {isImproved ? <Text style={[styles.improvedNote, { color: colors.success }]}>Suggestion améliorée appliquée à votre brouillon.</Text> : null}
-            
-            <Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Difficultés rencontrées</Text>
-            <TextInput
-              testID="difficulties-input"
-              value={difficulties}
-              onChangeText={setDifficulties}
-              multiline
-              placeholder="Décrivez les points qui ont ralenti votre semaine..."
-              placeholderTextColor={colors.mutedForeground}
-              style={[styles.textArea, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.input }]}
-            />
-            
-            <Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Perspectives et priorités</Text>
-            <TextInput
-              testID="perspectives-input"
-              value={perspectives}
-              onChangeText={setPerspectives}
-              multiline
-              placeholder="Quelles sont vos priorités pour la semaine prochaine ?"
-              placeholderTextColor={colors.mutedForeground}
-              style={[styles.textArea, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.input }]}
-            />
-
-            <View style={styles.buttonStack}>
-              <Pressable
-                testID="export-pdf-report"
-                onPress={handleExportPdf}
-                disabled={isExportingPdf || isSaving}
                 style={({ pressed }) => [
-                  styles.exportPdfButton,
-                  { backgroundColor: colors.primary, opacity: pressed || isExportingPdf ? 0.85 : 1 },
+                  styles.aiButton,
+                  { opacity: pressed || isImproving ? 0.8 : 1 },
                 ]}
               >
-                {isExportingPdf ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Feather name="file-text" size={18} color="#FFFFFF" />
-                )}
-                <Text style={styles.exportPdfText}>
-                  {isExportingPdf ? 'Génération du PDF…' : '📄 Télécharger / Partager le PDF'}
-                </Text>
+                <LinearGradient
+                  colors={['#8B5CF6', '#6D28D9']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.aiButtonGradient}
+                >
+                  {isImproving ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Feather name="zap" size={16} color="#FFFFFF" />
+                  )}
+                  <Text style={styles.aiButtonText}>
+                    {isImproving ? 'Optimisation en cours…' : '✨ Améliorer la rédaction avec Gemini'}
+                  </Text>
+                </LinearGradient>
               </Pressable>
 
-              <Pressable
-                testID="save-draft-report"
-                onPress={async () => {
-                  try {
-                    await saveReport();
-                    Alert.alert('Rapport sauvegardé', 'Vos modifications ont bien été enregistrées dans Supabase.');
-                  } catch (error) {
-                    Alert.alert('Enregistrement impossible', error instanceof Error ? error.message : 'Réessayez dans un instant.');
-                  }
-                }}
-                disabled={isSaving || isExportingPdf}
-                style={({ pressed }) => [
-                  styles.saveDraftButton,
-                  { borderColor: colors.border, backgroundColor: colors.card, opacity: pressed ? 0.8 : 1 },
-                ]}
-              >
-                <Feather name="save" size={16} color={colors.foreground} />
-                <Text style={[styles.saveDraftText, { color: colors.foreground }]}>
-                  {isSaving ? 'Enregistrement…' : 'Enregistrer le brouillon'}
-                </Text>
-              </Pressable>
+              {isImproved && (
+                <View style={[styles.improvedBanner, { backgroundColor: colors.greenSoft, borderColor: colors.success }]}>
+                  <Feather name="check" size={14} color={colors.success} />
+                  <Text style={[styles.improvedBannerText, { color: colors.success }]}>
+                    Texte enrichi et corrigé avec succès par l'IA !
+                  </Text>
+                </View>
+              )}
+
+              {/* Bouton de Soumission & Exportation */}
+              <View style={styles.bottomButtonsRow}>
+                <Pressable
+                  testID="submit-report-btn"
+                  onPress={saveReport}
+                  disabled={isSaving}
+                  style={({ pressed }) => [
+                    styles.submitReportBtn,
+                    { backgroundColor: colors.primary, opacity: pressed || isSaving ? 0.8 : 1 },
+                  ]}
+                >
+                  {isSaving ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Feather name="send" size={16} color="#FFFFFF" />
+                  )}
+                  <Text style={styles.submitReportBtnText}>
+                    {isSaving ? 'Envoi…' : '✔ Soumettre mon rapport'}
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  testID="preview-pdf-btn"
+                  onPress={() => setActiveTab('preview')}
+                  style={({ pressed }) => [
+                    styles.previewPdfBtn,
+                    { borderColor: colors.border, backgroundColor: colors.card, opacity: pressed ? 0.8 : 1 },
+                  ]}
+                >
+                  <Feather name="eye" size={16} color={colors.foreground} />
+                  <Text style={[styles.previewPdfBtnText, { color: colors.foreground }]}>
+                    Aperçu A4
+                  </Text>
+                </Pressable>
+              </View>
             </View>
           </View>
         ) : activeTab === 'preview' ? (
           /* ========================================================================= */
-          /* MODE 2 : APERÇU ÉVOLUTIF EN DIRECT (RENDU FEUILLE A4 DU PDF RESPONSIVE)   */
+          /* MODE 2 : APERÇU PDF A4 RESPONSIVE EN DIRECT                               */
           /* ========================================================================= */
           <View style={styles.contentColumn}>
-            {/* Barre de statut d'aperçu dynamique */}
-            <View style={[styles.liveStatusStrip, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={styles.liveStatusIndicator}>
-                <View style={styles.liveDot} />
-                <Text style={[styles.liveStatusText, { color: colors.foreground }]}>
-                  Aperçu synchronisé en temps réel
-                </Text>
-              </View>
-              <Text style={[styles.liveStatusSub, { color: colors.mutedForeground }]}>
-                Ce document reproduit fidèlement la mise en page du PDF officiel exporté avec l'en-tête de l'entreprise.
-              </Text>
-            </View>
-
-            {/* FEUILLE DE DOCUMENT A4 RESPONSIVE */}
-            <View style={[styles.paperSheet, { padding: isTabletOrDesktop ? 26 : isSmall ? 10 : 14 }]}>
-              
-              {/* 1. Bannière d'en-tête officielle d'entreprise */}
-              <View style={styles.bannerContainerRelative}>
+            <View style={styles.paperSheet}>
+              {/* En-tête officiel */}
+              <View style={[styles.paperHeaderBanner, { backgroundColor: primaryColor }]}>
                 {headerBanner ? (
-                  <Image source={{ uri: headerBanner }} style={styles.paperBannerImg} resizeMode="cover" />
+                  <Image source={{ uri: headerBanner }} style={styles.paperBannerImage} resizeMode="contain" />
                 ) : (
-                  <LinearGradient
-                    colors={['#1E3A8A', '#2563EB']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={[styles.paperBannerGradient, { paddingVertical: isSmall ? 14 : 18, paddingHorizontal: isSmall ? 12 : 16 }]}
-                  >
-                    <Text style={[styles.paperBannerTitle, { fontSize: isSmall ? 16 : 18 }]}>{companyName}</Text>
-                    <Text style={styles.paperBannerSubtitle}>RAPPORT D'ACTIVITÉS HEBDOMADAIRE OFFICIEL</Text>
-                  </LinearGradient>
+                  <View style={styles.paperDefaultHeaderRow}>
+                    <Image source={logo} style={styles.paperLogo} />
+                    <View style={styles.paperHeaderTitles}>
+                      <Text style={styles.paperCompanyName}>{companyName}</Text>
+                      <Text style={styles.paperDocSubtitle}>Rapport d'Activités Hebdomadaire</Text>
+                    </View>
+                  </View>
                 )}
-
-                {/* Si Superadmin : petit bouton d'accès direct aux Paramètres */}
-                {isSuperAdmin ? (
-                  <Pressable
-                    testID="preview-superadmin-settings-btn"
-                    onPress={() => router.push({ pathname: '/users', params: { openSettings: 'true' } })}
-                    style={({ pressed }) => [
-                      styles.bannerAdminBadge,
-                      { backgroundColor: 'rgba(15, 23, 42, 0.75)', opacity: pressed ? 0.8 : 1 },
-                    ]}
-                  >
-                    <Feather name="sliders" size={11} color="#FFFFFF" />
-                    <Text style={styles.bannerAdminBadgeText}>Paramètres Superadmin</Text>
-                  </Pressable>
-                ) : null}
               </View>
 
-              {/* 2. Carte d'identité Collaborateur & Détails de période (Adaptative) */}
-              <View
-                style={[
-                  styles.paperIdentityCard,
-                  isCompact && styles.paperIdentityCardCompact,
-                ]}
-              >
-                <View style={styles.paperUserLeft}>
+              {/* Métadonnées collaborateur */}
+              <View style={[styles.paperMetaRow, isCompact && { flexDirection: 'column', gap: 12 }]}>
+                <View style={styles.paperMetaLeft}>
                   {profile.avatarUri ? (
                     <Image source={{ uri: profile.avatarUri }} style={styles.paperAvatar} />
                   ) : (
                     <View style={[styles.paperAvatarFallback, { backgroundColor: primaryColor }]}>
-                      <Text style={styles.paperAvatarInitials}>
-                        {(profile.fullName || 'CO').slice(0, 2).toUpperCase()}
+                      <Text style={styles.paperAvatarText}>
+                        {profile.fullName
+                          ?.split(' ')
+                          .map((n) => n[0])
+                          .slice(0, 2)
+                          .join('')
+                          .toUpperCase() || 'U'}
                       </Text>
                     </View>
                   )}
-                  <View style={{ flex: 1 }}>
+                  <View style={styles.paperUserCol}>
                     <Text style={styles.paperUserName}>{profile.fullName || 'Collaborateur HINOV'}</Text>
                     <View style={styles.paperRoleBadgeRow}>
                       <View style={[styles.paperRoleBadge, { backgroundColor: primaryColor }]}>
@@ -913,12 +717,7 @@ export default function ReportScreen() {
                   </View>
                 </View>
 
-                <View
-                  style={[
-                    styles.paperMetaRight,
-                    isCompact && styles.paperMetaRightCompact,
-                  ]}
-                >
+                <View style={[styles.paperMetaRight, isCompact && styles.paperMetaRightCompact]}>
                   <View style={styles.paperDocBadge}>
                     <Text style={styles.paperDocBadgeText}>RAPPORT HEBDOMADAIRE</Text>
                   </View>
@@ -926,14 +725,12 @@ export default function ReportScreen() {
                 </View>
               </View>
 
-              {/* 3. Section 1 : Activités & Réalisations de la Semaine */}
+              {/* Section 1 : Activités */}
               <View style={styles.paperSectionHeading}>
                 <View style={[styles.paperSectionIcon, { backgroundColor: primaryColor }]}>
                   <Text style={styles.paperSectionIconNumber}>1</Text>
                 </View>
-                <Text style={[styles.paperSectionTitle, { color: primaryColor }]}>
-                  Activités & Réalisations
-                </Text>
+                <Text style={[styles.paperSectionTitle, { color: primaryColor }]}>Activités & Réalisations</Text>
                 <View style={styles.paperSectionCounter}>
                   <Text style={styles.paperSectionCounterText}>
                     {totalActivities} activité{totalActivities > 1 ? 's' : ''}
@@ -960,7 +757,6 @@ export default function ReportScreen() {
                           </Text>
                         </View>
                       </View>
-
                       {dayActs.map((act) => (
                         <View key={act.id} style={styles.paperActivityEntry}>
                           <View style={styles.paperActivityTitleRow}>
@@ -972,9 +768,7 @@ export default function ReportScreen() {
                               </View>
                             ) : null}
                           </View>
-                          {act.description ? (
-                            <Text style={styles.paperActivityDesc}>{act.description}</Text>
-                          ) : null}
+                          {act.description ? <Text style={styles.paperActivityDesc}>{act.description}</Text> : null}
                         </View>
                       ))}
                     </View>
@@ -982,7 +776,7 @@ export default function ReportScreen() {
                 })
               )}
 
-              {/* 4. Section 2 : Bilan & Difficultés Rencontrées */}
+              {/* Section 2 : Difficultés */}
               <View style={[styles.paperSectionHeading, { marginTop: 22 }]}>
                 <View style={[styles.paperSectionIcon, { backgroundColor: '#D97706' }]}>
                   <Text style={styles.paperSectionIconNumber}>2</Text>
@@ -996,13 +790,11 @@ export default function ReportScreen() {
                   ⚠️ Points de blocage & vigilances opérationnelles
                 </Text>
                 <Text style={[styles.paperCalloutBody, { color: '#78350F' }]}>
-                  {difficulties.trim()
-                    ? difficulties
-                    : 'Aucun point bloquant majeur signalé pour cette période.'}
+                  {difficulties.trim() ? difficulties : 'Aucun point bloquant majeur signalé pour cette période.'}
                 </Text>
               </View>
 
-              {/* 5. Section 3 : Perspectives & Priorités de la Semaine Suivante */}
+              {/* Section 3 : Perspectives */}
               <View style={[styles.paperSectionHeading, { marginTop: 22 }]}>
                 <View style={[styles.paperSectionIcon, { backgroundColor: '#059669' }]}>
                   <Text style={styles.paperSectionIconNumber}>3</Text>
@@ -1022,17 +814,12 @@ export default function ReportScreen() {
                 </Text>
               </View>
 
-              {/* 6. Section 4 : Bloc de Visa et Signature (Responsive) */}
-              <View
-                style={[
-                  styles.paperSignaturesRow,
-                  isCompact && { flexDirection: 'column' },
-                ]}
-              >
+              {/* Section 4 : Signatures */}
+              <View style={[styles.paperSignaturesRow, isCompact && { flexDirection: 'column' }]}>
                 <View style={styles.paperSignBox}>
                   <Text style={styles.paperSignLabel}>Collaborateur</Text>
                   <Text style={styles.paperSignName}>{profile.fullName || 'Collaborateur'}</Text>
-                  <Text style={styles.paperSignStatusDone}>✔ Document validé et transmis</Text>
+                  <Text style={styles.paperSignStatusDone}>✔ Document certifié et transmis</Text>
                 </View>
                 <View style={styles.paperSignBox}>
                   <Text style={styles.paperSignLabel}>Visa Hiérarchique / Direction</Text>
@@ -1041,16 +828,16 @@ export default function ReportScreen() {
                 </View>
               </View>
 
-              {/* 7. Pied de page officiel */}
+              {/* Footer */}
               <View style={styles.paperFooter}>
                 <Text style={styles.paperFooterText}>
                   {appSettings?.pdfFooterText || "HINOV Team Report - Document Confidentiel d'Entreprise"}
                 </Text>
-                <Text style={styles.paperFooterDate}>Aperçu synchronisé</Text>
+                <Text style={styles.paperFooterDate}>Aperçu Officiel</Text>
               </View>
             </View>
 
-            {/* Boutons d'action dans l'aperçu */}
+            {/* Actions aperçu */}
             <View style={styles.previewActionStack}>
               <Pressable
                 testID="preview-export-btn"
@@ -1088,136 +875,17 @@ export default function ReportScreen() {
           </View>
         ) : (
           /* ========================================================================= */
-          /* MODE 3 : HISTORIQUE DES RAPPORTS AVEC RECHERCHE ET FILTRES                */
+          /* MODE 3 : MON HISTORIQUE PERSONNEL DES RAPPORTS                            */
           /* ========================================================================= */
           <View style={styles.contentColumn}>
-            {/* Si Directeur/Admin : Sélecteur de Scope (Équipe vs Personnel) */}
-            {isAdmin ? (
-              <View style={[styles.historyScopeTabBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Pressable
-                  testID="scope-team-reports"
-                  onPress={() => {
-                    setHistoryScope('TEAM');
-                    setMemberFilter('ALL');
-                  }}
-                  style={[
-                    styles.historyScopeBtn,
-                    historyScope === 'TEAM' && { backgroundColor: colors.primary },
-                  ]}
-                >
-                  <Feather
-                    name="users"
-                    size={14}
-                    color={historyScope === 'TEAM' ? colors.primaryForeground : colors.mutedForeground}
-                  />
-                  <Text
-                    style={[
-                      styles.historyScopeBtnText,
-                      {
-                        color: historyScope === 'TEAM' ? colors.primaryForeground : colors.foreground,
-                        fontWeight: historyScope === 'TEAM' ? '700' : '500',
-                      },
-                    ]}
-                  >
-                    Rapports reçus de l'équipe ({historyList.length})
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  testID="scope-my-reports"
-                  onPress={() => setHistoryScope('MINE')}
-                  style={[
-                    styles.historyScopeBtn,
-                    historyScope === 'MINE' && { backgroundColor: colors.primary },
-                  ]}
-                >
-                  <Feather
-                    name="user"
-                    size={14}
-                    color={historyScope === 'MINE' ? colors.primaryForeground : colors.mutedForeground}
-                  />
-                  <Text
-                    style={[
-                      styles.historyScopeBtnText,
-                      {
-                        color: historyScope === 'MINE' ? colors.primaryForeground : colors.foreground,
-                        fontWeight: historyScope === 'MINE' ? '700' : '500',
-                      },
-                    ]}
-                  >
-                    Mon historique personnel ({historyMyList.length})
-                  </Text>
-                </Pressable>
-              </View>
-            ) : null}
-
-            {/* Si Scope Équipe (Direction) : Sélecteur horizontal de Collaborateurs */}
-            {isAdmin && historyScope === 'TEAM' && teamMembers.length > 0 ? (
-              <View style={[styles.historyCollabFilterBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                  <Feather name="filter" size={12} color={colors.primary} />
-                  <Text style={{ fontSize: 10, fontFamily: 'Inter_700Bold', color: colors.mutedForeground, letterSpacing: 0.8 }}>
-                    FILTRER PAR COLLABORATEUR
-                  </Text>
-                </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterPillsRow}>
-                  <Pressable
-                    onPress={() => setMemberFilter('ALL')}
-                    style={[
-                      styles.filterPill,
-                      {
-                        backgroundColor: memberFilter === 'ALL' ? colors.primary : colors.background,
-                        borderColor: memberFilter === 'ALL' ? colors.primary : colors.border,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.filterPillText,
-                        { color: memberFilter === 'ALL' ? colors.primaryForeground : colors.foreground, fontWeight: memberFilter === 'ALL' ? '700' : '500' },
-                      ]}
-                    >
-                      Tous les collaborateurs
-                    </Text>
-                  </Pressable>
-
-                  {teamMembers.map((m) => {
-                    const isSelected = memberFilter === m.id;
-                    return (
-                      <Pressable
-                        key={m.id}
-                        onPress={() => setMemberFilter(m.id)}
-                        style={[
-                          styles.filterPill,
-                          {
-                            backgroundColor: isSelected ? colors.primary : colors.background,
-                            borderColor: isSelected ? colors.primary : colors.border,
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.filterPillText,
-                            { color: isSelected ? colors.primaryForeground : colors.foreground, fontWeight: isSelected ? '700' : '500' },
-                          ]}
-                        >
-                          {m.fullName}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-            ) : null}
-
-            {/* Barre de recherche avec icône loupe */}
+            {/* Barre de recherche */}
             <View style={[styles.historySearchBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Feather name="search" size={16} color={colors.primary} />
               <TextInput
                 testID="history-search-input"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
-                placeholder={isAdmin && historyScope === 'TEAM' ? "Rechercher par collaborateur, pôle, mot-clé, date..." : "Rechercher dans mes activités, difficultés, projets..."}
+                placeholder="Rechercher dans mes rapports (semaine, difficultés, perspectives)..."
                 placeholderTextColor={colors.mutedForeground}
                 style={[styles.historySearchInput, { color: colors.foreground }]}
               />
@@ -1228,11 +896,11 @@ export default function ReportScreen() {
               ) : null}
             </View>
 
-            {/* Filtres de statut & Pôles */}
+            {/* Filtres de statut */}
             <View style={styles.historyFiltersSection}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterPillsRow}>
                 {[
-                  { key: 'ALL', label: 'Tous les statuts' },
+                  { key: 'ALL', label: 'Tous mes rapports' },
                   { key: 'SUBMITTED', label: '✔ Validés / Transmis' },
                   { key: 'DRAFT', label: '⏳ Brouillons' },
                 ].map((st) => {
@@ -1260,57 +928,6 @@ export default function ReportScreen() {
                     </Pressable>
                   );
                 })}
-
-                {/* Filtre Pôles / Départements si Admin et Scope Équipe */}
-                {isAdmin && historyScope === 'TEAM' && departmentOptions.length > 0 ? (
-                  <>
-                    <View style={styles.filterDivider} />
-                    <Pressable
-                      onPress={() => setDeptFilter('ALL')}
-                      style={[
-                        styles.filterPill,
-                        {
-                          backgroundColor: deptFilter === 'ALL' ? colors.ai : colors.card,
-                          borderColor: deptFilter === 'ALL' ? colors.ai : colors.border,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.filterPillText,
-                          { color: deptFilter === 'ALL' ? '#FFFFFF' : colors.foreground, fontWeight: deptFilter === 'ALL' ? '700' : '500' },
-                        ]}
-                      >
-                        Tous les pôles
-                      </Text>
-                    </Pressable>
-                    {departmentOptions.map((dept) => {
-                      const isSelected = deptFilter === dept;
-                      return (
-                        <Pressable
-                          key={dept}
-                          onPress={() => setDeptFilter(dept)}
-                          style={[
-                            styles.filterPill,
-                            {
-                              backgroundColor: isSelected ? colors.ai : colors.card,
-                              borderColor: isSelected ? colors.ai : colors.border,
-                            },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.filterPillText,
-                              { color: isSelected ? '#FFFFFF' : colors.foreground, fontWeight: isSelected ? '700' : '500' },
-                            ]}
-                          >
-                            {dept}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </>
-                ) : null}
               </ScrollView>
             </View>
 
@@ -1336,44 +953,27 @@ export default function ReportScreen() {
               </View>
             </View>
 
-            {/* État de chargement */}
+            {/* Chargement ou Contenu */}
             {loadingHistory ? (
               <View style={styles.loadingBox}>
                 <ActivityIndicator size="large" color={colors.primary} />
                 <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
-                  Chargement de l'historique des rapports...
+                  Chargement de votre historique...
                 </Text>
               </View>
             ) : filteredHistory.length === 0 ? (
-              /* Aucun rapport trouvé */
               <View style={[styles.emptyHistoryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <View style={[styles.emptyHistoryIconWrap, { backgroundColor: colors.blueSoft }]}>
                   <Feather name="folder" size={28} color={colors.primary} />
                 </View>
                 <Text style={[styles.emptyHistoryTitle, { color: colors.foreground }]}>
-                  Aucun rapport correspondant
+                  Aucun rapport dans l'historique
                 </Text>
                 <Text style={[styles.emptyHistorySubtitle, { color: colors.mutedForeground }]}>
-                  {searchQuery || statusFilter !== 'ALL' || deptFilter !== 'ALL'
-                    ? 'Essayez de modifier vos critères de recherche ou de réinitialiser vos filtres.'
-                    : 'Les rapports hebdomadaires enregistrés ou validés apparaîtront automatiquement ici.'}
+                  Vos rapports hebdomadaires enregistrés et validés apparaîtront automatiquement ici.
                 </Text>
-                {searchQuery || statusFilter !== 'ALL' || deptFilter !== 'ALL' ? (
-                  <Pressable
-                    onPress={() => {
-                      setSearchQuery('');
-                      setStatusFilter('ALL');
-                      setDeptFilter('ALL');
-                      setMemberFilter('ALL');
-                    }}
-                    style={[styles.resetFiltersBtn, { backgroundColor: colors.primary }]}
-                  >
-                    <Text style={styles.resetFiltersBtnText}>Réinitialiser les filtres</Text>
-                  </Pressable>
-                ) : null}
               </View>
             ) : (
-              /* Liste des rapports archivés */
               <View style={{ gap: 12, marginTop: 4 }}>
                 {filteredHistory.map((item) => {
                   const isSubmitted = item.status === 'SUBMITTED';
@@ -1383,12 +983,8 @@ export default function ReportScreen() {
                   return (
                     <View
                       key={item.id}
-                      style={[
-                        styles.historyItemCard,
-                        { backgroundColor: colors.card, borderColor: colors.border },
-                      ]}
+                      style={[styles.historyItemCard, { backgroundColor: colors.card, borderColor: colors.border }]}
                     >
-                      {/* En-tête de la carte */}
                       <View style={styles.historyCardHeader}>
                         <View style={{ flex: 1 }}>
                           <View style={styles.historyPeriodRow}>
@@ -1397,124 +993,64 @@ export default function ReportScreen() {
                               {itemWeekLabel}
                             </Text>
                           </View>
-
-                          {isAdmin && item.fullName ? (
-                            <View style={styles.historyCollaboratorRow}>
-                              <View style={[styles.historyAvatarCircle, { backgroundColor: primaryColor }]}>
-                                {item.avatarUrl ? (
-                                  <Image source={{ uri: item.avatarUrl }} style={styles.historyAvatarImg} />
-                                ) : (
-                                  <Text style={styles.historyAvatarInitials}>
-                                    {item.fullName.slice(0, 2).toUpperCase()}
-                                  </Text>
-                                )}
-                              </View>
-                              <View style={{ flex: 1 }}>
-                                <Text style={[styles.historyCollaboratorName, { color: colors.foreground }]}>
-                                  {item.fullName}
-                                </Text>
-                                <Text style={[styles.historyCollaboratorDept, { color: colors.mutedForeground }]}>
-                                  {item.department || 'Général'} • {item.role || 'COLLABORATEUR'}
-                                </Text>
-                              </View>
-                            </View>
-                          ) : null}
+                          <Text style={[styles.historyWeekSubtitle, { color: colors.mutedForeground }]}>
+                            Semaine du {item.weekStart}
+                          </Text>
                         </View>
 
-                        {/* Statut & badge d'activités */}
-                        <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                          <View
+                        <View
+                          style={[
+                            styles.historyStatusBadge,
+                            {
+                              backgroundColor: isSubmitted ? '#DEF7EC' : colors.orangeSoft,
+                              borderColor: isSubmitted ? '#84E1BC' : colors.warning,
+                            },
+                          ]}
+                        >
+                          <Text
                             style={[
-                              styles.historyStatusBadge,
-                              { backgroundColor: isSubmitted ? '#DEF7EC' : colors.orangeSoft },
+                              styles.historyStatusText,
+                              { color: isSubmitted ? '#03543F' : colors.warning },
                             ]}
                           >
-                            <Feather
-                              name={isSubmitted ? 'check-circle' : 'clock'}
-                              size={12}
-                              color={isSubmitted ? '#03543F' : colors.warning}
-                            />
-                            <Text
-                              style={[
-                                styles.historyStatusBadgeText,
-                                { color: isSubmitted ? '#03543F' : colors.warning },
-                              ]}
-                            >
-                              {isSubmitted ? 'Validé & Transmis' : 'Brouillon'}
-                            </Text>
-                          </View>
-
-                          <View style={[styles.historyActsBadge, { backgroundColor: colors.blueSoft }]}>
-                            <Feather name="check-square" size={11} color={colors.primary} />
-                            <Text style={[styles.historyActsBadgeText, { color: colors.primary }]}>
-                              {item.activitiesCount ?? 0} activité{(item.activitiesCount ?? 0) > 1 ? 's' : ''}
-                            </Text>
-                          </View>
+                            {isSubmitted ? '✔ Transmis' : '⏳ Brouillon'}
+                          </Text>
                         </View>
                       </View>
 
-                      {/* Résumé des difficultés & perspectives si présentes */}
-                      {item.difficulties || item.perspectives ? (
-                        <View style={styles.historySnippetsWrap}>
-                          {item.difficulties ? (
-                            <View style={[styles.historySnippetBox, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
-                              <Text style={[styles.historySnippetTitle, { color: '#92400E' }]}>
-                                ⚠️ Difficultés :
-                              </Text>
-                              <Text numberOfLines={2} style={[styles.historySnippetBody, { color: '#78350F' }]}>
-                                {item.difficulties}
-                              </Text>
-                            </View>
-                          ) : null}
-
-                          {item.perspectives ? (
-                            <View style={[styles.historySnippetBox, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
-                              <Text style={[styles.historySnippetTitle, { color: '#065F46' }]}>
-                                🎯 Perspectives :
-                              </Text>
-                              <Text numberOfLines={2} style={[styles.historySnippetBody, { color: '#064E3B' }]}>
-                                {item.perspectives}
-                              </Text>
-                            </View>
-                          ) : null}
-                        </View>
+                      {/* Difficultés & Perspectives */}
+                      {item.difficulties ? (
+                        <Text style={[styles.historyExcerptText, { color: colors.foreground }]} numberOfLines={2}>
+                          <Text style={{ fontWeight: '700', color: '#D97706' }}>Difficultés : </Text>
+                          {item.difficulties}
+                        </Text>
                       ) : null}
 
-                      {/* Boutons d'action rapides */}
-                      <View style={styles.historyActionsRow}>
-                        <Pressable
-                          testID={`preview-history-${item.id}`}
-                          onPress={() => handlePreviewHistoricReport(item)}
-                          style={({ pressed }) => [
-                            styles.historyActionBtn,
-                            { backgroundColor: colors.blueSoft, opacity: pressed ? 0.8 : 1 },
-                          ]}
-                        >
-                          <Feather name="eye" size={14} color={colors.primary} />
-                          <Text style={[styles.historyActionBtnText, { color: colors.primary }]}>
-                            Aperçu PDF Direct
-                          </Text>
-                        </Pressable>
+                      {item.perspectives ? (
+                        <Text style={[styles.historyExcerptText, { color: colors.foreground, marginTop: 4 }]} numberOfLines={2}>
+                          <Text style={{ fontWeight: '700', color: '#059669' }}>Perspectives : </Text>
+                          {item.perspectives}
+                        </Text>
+                      ) : null}
 
+                      {/* Actions */}
+                      <View style={styles.historyCardFooter}>
+                        <Text style={[styles.historyActivitiesBadgeText, { color: colors.mutedForeground }]}>
+                          {item.activitiesCount ?? 0} activité{(item.activitiesCount ?? 0) > 1 ? 's' : ''}
+                        </Text>
                         <Pressable
-                          testID={`download-history-${item.id}`}
                           onPress={() => handleDownloadHistoricReport(item)}
                           disabled={isDownloading}
-                          style={({ pressed }) => [
-                            styles.historyActionBtn,
-                            { backgroundColor: colors.primary, opacity: isDownloading ? 0.6 : pressed ? 0.85 : 1 },
-                          ]}
+                          style={[styles.historyDownloadActionBtn, { backgroundColor: colors.primary }]}
                         >
                           {isDownloading ? (
                             <ActivityIndicator size="small" color="#FFFFFF" />
                           ) : (
-                            <>
-                              <Feather name="download" size={14} color="#FFFFFF" />
-                              <Text style={[styles.historyActionBtnText, { color: '#FFFFFF' }]}>
-                                Télécharger PDF
-                              </Text>
-                            </>
+                            <Feather name="download" size={13} color="#FFFFFF" style={{ marginRight: 5 }} />
                           )}
+                          <Text style={styles.historyDownloadActionText}>
+                            {isDownloading ? 'Téléchargement…' : 'Télécharger PDF'}
+                          </Text>
                         </Pressable>
                       </View>
                     </View>
@@ -1530,186 +1066,190 @@ export default function ReportScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  mainWrapper: { width: '100%' },
-  contentColumn: { width: '100%' },
-
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 4, marginBottom: 16 },
-  headerActions: { alignItems: 'flex-end', gap: 10 },
-  headerAvatar: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, padding: 2 },
-  eyebrow: { fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 1.3, marginBottom: 7 },
-  title: { fontSize: 26, fontFamily: 'Inter_700Bold', letterSpacing: -0.6 },
-  subtitle: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 5 },
-  statusPill: { borderRadius: 15, paddingHorizontal: 10, paddingVertical: 7, flexDirection: 'row', alignItems: 'center', gap: 5 },
-  statusDot: { width: 6, height: 6, borderRadius: 3 },
-  statusText: { fontSize: 10, fontFamily: 'Inter_600SemiBold' },
-
-  /* Onglets de bascule Rédaction / Aperçu */
+  container: {
+    flex: 1,
+  },
+  content: {
+    alignItems: 'center',
+  },
+  mainWrapper: {
+    width: '100%',
+    gap: 16,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  headerActions: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
+  headerAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1.5,
+  },
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
   tabBar: {
     flexDirection: 'row',
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
     padding: 4,
-    marginBottom: 18,
     gap: 4,
-    width: '100%',
   },
   tabButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 7,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    borderRadius: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
   },
-  tabButtonText: { fontFamily: 'Inter_600SemiBold' },
-  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#10B981' },
-  liveDotMini: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#10B981' },
+  tabButtonText: {
+    fontSize: 12,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
+  },
   historyCountBadge: {
-    paddingHorizontal: 6,
+    paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: 8,
   },
   historyCountBadgeText: {
     fontSize: 10,
-    fontFamily: 'Inter_700Bold',
+    fontWeight: '700',
   },
-  loadingBox: {
-    padding: 40,
-    alignItems: 'center',
-    gap: 12,
-    width: '100%',
+  contentColumn: {
+    gap: 14,
   },
-  loadingText: {
-    fontSize: 13,
-    fontFamily: 'Inter_400Regular',
-  },
-
-  /* Carte Bannière vers Aperçu */
   previewBannerCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 16,
-    borderWidth: 1.5,
-    padding: 14,
-    marginBottom: 16,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
     gap: 12,
-    width: '100%',
   },
-  previewBannerIcon: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  previewBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 3 },
-  previewBadgeText: { fontSize: 9, fontFamily: 'Inter_700Bold', letterSpacing: 1 },
-  previewBannerTitle: { fontSize: 13, fontFamily: 'Inter_700Bold' },
-  previewBannerSubtitle: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
-
-  /* Raccourci Paramètres Superadmin */
+  previewBannerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 2,
+  },
+  previewBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  liveDotMini: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#10B981',
+  },
+  previewBannerTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  previewBannerSubtitle: {
+    fontSize: 11,
+    marginTop: 1,
+  },
   superadminSettingsHintCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 16,
-    borderWidth: 1.5,
-    padding: 14,
-    marginBottom: 16,
-    gap: 12,
-    width: '100%',
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 10,
   },
   superadminIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
   superadminHintTitle: {
-    fontSize: 13,
-    fontFamily: 'Inter_700Bold',
+    fontSize: 12,
+    fontWeight: '700',
   },
   superadminHintSub: {
-    fontSize: 11,
-    fontFamily: 'Inter_400Regular',
-    marginTop: 2,
+    fontSize: 10,
   },
-
-  /* Progress Card */
-  progressCard: { borderWidth: 1, borderRadius: 20, padding: 16, marginBottom: 22, width: '100%' },
-  progressTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  progressLabel: { fontSize: 9, fontFamily: 'Inter_700Bold', letterSpacing: 1 },
-  progressTitle: { fontSize: 15, fontFamily: 'Inter_700Bold', marginTop: 6 },
-  reportIcon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  track: { height: 7, borderRadius: 4, overflow: 'hidden', marginTop: 18 },
-  trackFill: { height: '100%', borderRadius: 4 },
-  progressHint: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 9 },
-  sectionTitle: { fontSize: 16, fontFamily: 'Inter_700Bold', marginHorizontal: 4, marginBottom: 12 },
-
-  /* Activités en mode rédaction */
-  dayCard: { borderWidth: 1, borderRadius: 17, padding: 14, marginBottom: 10, width: '100%' },
-  dayHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  dayName: { fontSize: 14, fontFamily: 'Inter_700Bold' },
-  dayCount: { fontSize: 10, fontFamily: 'Inter_600SemiBold' },
-  reportActivity: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 10 },
-  reportBullet: { width: 6, height: 6, borderRadius: 3, marginTop: 6, marginRight: 9 },
-  reportActivityCopy: { flex: 1 },
-  reportActivityTitle: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
-  reportActivityDescription: { fontSize: 11, fontFamily: 'Inter_400Regular', lineHeight: 16, marginTop: 3 },
-  emptyDay: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 7 },
-
-  /* Formulaire bilan */
-  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 18, marginHorizontal: 4 },
-  aiButton: { flexDirection: 'row', gap: 6, alignItems: 'center', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 7 },
-  aiButtonText: { fontSize: 10, fontFamily: 'Inter_700Bold' },
-  improvedNote: { fontSize: 11, fontFamily: 'Inter_500Medium', marginHorizontal: 4, marginTop: 4, marginBottom: 7 },
-  inputLabel: { fontSize: 11, fontFamily: 'Inter_600SemiBold', marginHorizontal: 4, marginTop: 8, marginBottom: 7 },
-  textArea: { borderWidth: 1, borderRadius: 14, minHeight: 86, paddingHorizontal: 13, paddingTop: 12, fontSize: 12, fontFamily: 'Inter_400Regular', textAlignVertical: 'top', width: '100%' },
-  buttonStack: { marginTop: 22, gap: 10, width: '100%' },
-  exportPdfButton: { minHeight: 52, borderRadius: 14, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', shadowColor: '#1E3A8A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 4, width: '100%' },
-  exportPdfText: { color: '#FFFFFF', fontSize: 14, fontFamily: 'Inter_700Bold' },
-  saveDraftButton: { minHeight: 46, borderRadius: 14, borderWidth: 1, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', width: '100%' },
-  saveDraftText: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
-
-  /* ========================================================================= */
-  /* STYLES FEUILLE A4 DU PDF DANS L'APERÇU RESPONSIVE                         */
-  /* ========================================================================= */
-  liveStatusStrip: {
+  card: {
+    padding: 14,
     borderRadius: 14,
     borderWidth: 1,
-    padding: 12,
-    marginBottom: 14,
-    width: '100%',
+    gap: 10,
   },
-  liveStatusIndicator: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  liveStatusText: { fontSize: 12, fontFamily: 'Inter_700Bold' },
-  liveStatusSub: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 3 },
-
-  /* Papier A4 */
-  paperSheet: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 6,
-    width: '100%',
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
-  bannerContainerRelative: {
-    position: 'relative',
-    width: '100%',
-    marginBottom: 14,
-  },
-  paperBannerImg: { width: '100%', height: 85, borderRadius: 8 },
-  paperBannerGradient: {
+  cardIconWrap: {
+    width: 34,
+    height: 34,
     borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  paperBannerTitle: { color: '#FFFFFF', fontFamily: 'Inter_700Bold', letterSpacing: 0.8 },
-  paperBannerSubtitle: { color: 'rgba(255,255,255,0.85)', fontSize: 9, fontFamily: 'Inter_700Bold', letterSpacing: 1.2, marginTop: 3 },
-  bannerAdminBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  sectionSubtitle: {
+    fontSize: 11,
+  },
+  editActivitiesBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -1717,434 +1257,657 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 6,
   },
-  bannerAdminBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 9,
-    fontFamily: 'Inter_600SemiBold',
-  },
-
-  /* Utilisateur dans la feuille (Adaptatif) */
-  paperIdentityCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 8,
-    padding: 11,
-    marginBottom: 16,
-    gap: 8,
-  },
-  paperIdentityCardCompact: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    gap: 10,
-  },
-  paperUserLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, width: '100%' },
-  paperAvatar: { width: 44, height: 44, borderRadius: 22 },
-  paperAvatarFallback: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  paperAvatarInitials: { color: '#FFFFFF', fontSize: 16, fontFamily: 'Inter_700Bold' },
-  paperUserName: { fontSize: 13, fontFamily: 'Inter_700Bold', color: '#0F172A' },
-  paperRoleBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' },
-  paperRoleBadge: { borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
-  paperRoleText: { color: '#FFFFFF', fontSize: 9, fontFamily: 'Inter_700Bold', letterSpacing: 0.5 },
-  paperDeptText: { fontSize: 10, fontFamily: 'Inter_500Medium', color: '#64748B' },
-  paperEmailText: { fontSize: 10, fontFamily: 'Inter_400Regular', color: '#94A3B8', marginTop: 2 },
-  paperMetaRight: { alignItems: 'flex-end', justifyContent: 'center' },
-  paperMetaRightCompact: {
-    alignItems: 'flex-start',
-    width: '100%',
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  paperDocBadge: { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE', borderWidth: 1, borderRadius: 12, paddingHorizontal: 7, paddingVertical: 3, marginBottom: 2 },
-  paperDocBadgeText: { color: '#1E3A8A', fontSize: 8, fontFamily: 'Inter_700Bold' },
-  paperPeriodText: { fontSize: 10, fontFamily: 'Inter_600SemiBold', color: '#334155' },
-
-  /* Sections numérotées */
-  paperSectionHeading: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 14,
-    marginBottom: 10,
-    paddingBottom: 4,
-    borderBottomWidth: 1.5,
-    borderBottomColor: '#E2E8F0',
-  },
-  paperSectionIcon: { width: 20, height: 20, borderRadius: 5, alignItems: 'center', justifyContent: 'center' },
-  paperSectionIconNumber: { color: '#FFFFFF', fontSize: 11, fontFamily: 'Inter_700Bold' },
-  paperSectionTitle: { fontSize: 12, fontFamily: 'Inter_700Bold', letterSpacing: 0.4, textTransform: 'uppercase', flex: 1 },
-  paperSectionCounter: { backgroundColor: '#F1F5F9', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10 },
-  paperSectionCounterText: { fontSize: 9, fontFamily: 'Inter_600SemiBold', color: '#64748B' },
-
-  /* Blocs activités par jour */
-  paperDayBlock: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 10,
-  },
-  paperDayHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  paperDayTitle: { fontSize: 12, fontFamily: 'Inter_700Bold', color: '#1E293B', textTransform: 'uppercase' },
-  paperDayBadge: { backgroundColor: '#F8FAFC', borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 6, paddingVertical: 2 },
-  paperDayBadgeText: { fontSize: 9, fontFamily: 'Inter_600SemiBold', color: '#475569' },
-  paperActivityEntry: { marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
-  paperActivityTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
-  paperActivityBullet: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: '#1E3A8A' },
-  paperActivityTitle: { fontSize: 11, fontFamily: 'Inter_700Bold', color: '#0F172A', flex: 1, minWidth: 160 },
-  paperCategoryTag: { backgroundColor: '#F1F5F9', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
-  paperCategoryTagText: { fontSize: 8, fontFamily: 'Inter_600SemiBold', color: '#64748B' },
-  paperActivityDesc: { fontSize: 10, fontFamily: 'Inter_400Regular', color: '#475569', marginTop: 2, paddingLeft: 11, lineHeight: 15 },
-  paperEmptyDayBox: { padding: 14, backgroundColor: '#F8FAFC', borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0', alignItems: 'center', marginBottom: 8 },
-  paperEmptyDayText: { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#94A3B8', fontStyle: 'italic' },
-
-  /* Callout box (difficultés & perspectives) */
-  paperCalloutBox: { borderWidth: 1, borderRadius: 8, padding: 10, marginBottom: 8 },
-  paperCalloutTitle: { fontSize: 10, fontFamily: 'Inter_700Bold', marginBottom: 4 },
-  paperCalloutBody: { fontSize: 10, fontFamily: 'Inter_400Regular', lineHeight: 15 },
-
-  /* Signatures (Responsive) */
-  paperSignaturesRow: { flexDirection: 'row', gap: 10, marginTop: 18, marginBottom: 12 },
-  paperSignBox: { flex: 1, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#CBD5E1', borderStyle: 'dashed', borderRadius: 8, padding: 9 },
-  paperSignLabel: { fontSize: 9, fontFamily: 'Inter_700Bold', color: '#475569', textTransform: 'uppercase', marginBottom: 2 },
-  paperSignName: { fontSize: 10, fontFamily: 'Inter_600SemiBold', color: '#1E293B', marginTop: 2 },
-  paperSignStatusDone: { fontSize: 9, fontFamily: 'Inter_600SemiBold', color: '#059669', marginTop: 10 },
-  paperSignPending: { fontSize: 9, fontFamily: 'Inter_400Regular', color: '#94A3B8', marginTop: 4 },
-  paperSignLine: { height: 1, backgroundColor: '#CBD5E1', marginTop: 10 },
-
-  /* Footer */
-  paperFooter: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingTop: 8, marginTop: 10, flexWrap: 'wrap', gap: 4 },
-  paperFooterText: { fontSize: 8, fontFamily: 'Inter_400Regular', color: '#94A3B8' },
-  paperFooterDate: { fontSize: 8, fontFamily: 'Inter_400Regular', color: '#94A3B8' },
-
-  /* Action Buttons dans l'aperçu */
-  previewActionStack: { marginTop: 18, gap: 10, width: '100%' },
-
-  /* Team switcher section for Director / Admin */
-  teamSwitcherSection: {
-    width: '100%',
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 14,
-  },
-  teamSwitcherHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
-  },
-  teamSwitcherLabel: {
-    fontSize: 10,
-    fontFamily: 'Inter_700Bold',
-    letterSpacing: 1,
-  },
-  teamPillsScroll: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  teamPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  teamPillText: {
-    fontSize: 12,
-    fontFamily: 'Inter_500Medium',
-  },
-  viewingCollaboratorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 14,
-    width: '100%',
-  },
-  viewingBannerTitle: {
-    fontSize: 13,
-    fontFamily: 'Inter_700Bold',
-  },
-  viewingBannerSub: {
+  editActivitiesText: {
     fontSize: 11,
-    fontFamily: 'Inter_400Regular',
-    marginTop: 2,
+    fontWeight: '700',
   },
-  backToMineBtn: {
+  emptyBox: {
+    padding: 24,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  emptyAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 10,
+    borderRadius: 8,
   },
-  backToMineText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontFamily: 'Inter_700Bold',
+  emptyAddBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
-
-  /* ========================================================================= */
-  /* STYLES HISTORIQUE & RECHERCHE DES RAPPORTS                                */
-  /* ========================================================================= */
-  historyScopeTabBar: {
-    flexDirection: 'row',
-    borderRadius: 14,
+  daysList: {
+    gap: 8,
+  },
+  dayCard: {
+    padding: 10,
+    borderRadius: 8,
     borderWidth: 1,
-    padding: 4,
-    marginBottom: 12,
     gap: 6,
-    width: '100%',
   },
-  historyScopeBtn: {
+  dayCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dayTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  dayBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+  },
+  dayBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    paddingVertical: 2,
+  },
+  activityBullet: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    marginTop: 6,
+  },
+  activityTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  activityDesc: {
+    fontSize: 11,
+    marginTop: 1,
+  },
+  textArea: {
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 10,
+    fontSize: 13,
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  actionSection: {
+    gap: 10,
+  },
+  aiButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  aiButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    gap: 8,
+  },
+  aiButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  improvedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  improvedBannerText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  bottomButtonsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  submitReportBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
+    paddingVertical: 12,
     borderRadius: 10,
+    gap: 6,
   },
-  historyScopeBtnText: {
-    fontSize: 12,
+  submitReportBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
   },
-  historyCollabFilterBox: {
+  previewPdfBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 10,
     borderWidth: 1,
-    borderRadius: 14,
-    padding: 10,
-    marginBottom: 12,
-    width: '100%',
+    gap: 6,
   },
+  previewPdfBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  // Aperçu papier A4
+  paperSheet: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  paperHeaderBanner: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  paperBannerImage: {
+    width: '100%',
+    height: 50,
+  },
+  paperDefaultHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  paperLogo: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+  },
+  paperHeaderTitles: {
+    flex: 1,
+  },
+  paperCompanyName: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  paperDocSubtitle: {
+    color: '#E0E7FF',
+    fontSize: 11,
+  },
+  paperMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 14,
+    backgroundColor: '#F8FAFC',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  paperMetaLeft: {
+    flexDirection: 'row',
+    gap: 10,
+    flex: 1,
+  },
+  paperAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
+  paperAvatarFallback: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  paperAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  paperUserCol: {
+    flex: 1,
+  },
+  paperUserName: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  paperRoleBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  paperRoleBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  paperRoleText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  paperDeptText: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  paperEmailText: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+  paperMetaRight: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  paperMetaRightCompact: {
+    alignItems: 'flex-start',
+  },
+  paperDocBadge: {
+    backgroundColor: '#E0E7FF',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  paperDocBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#4338CA',
+  },
+  paperPeriodText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  paperSectionHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 14,
+    marginTop: 14,
+    marginBottom: 6,
+    gap: 8,
+  },
+  paperSectionIcon: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  paperSectionIconNumber: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  paperSectionTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    flex: 1,
+  },
+  paperSectionCounter: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  paperSectionCounterText: {
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  paperEmptyDayBox: {
+    marginHorizontal: 14,
+    padding: 10,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  paperEmptyDayText: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontStyle: 'italic',
+  },
+  paperDayBlock: {
+    marginHorizontal: 14,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  paperDayHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    backgroundColor: '#F8FAFC',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  paperDayTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  paperDayBadge: {
+    backgroundColor: '#E0E7FF',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 3,
+  },
+  paperDayBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#4338CA',
+  },
+  paperActivityEntry: {
+    padding: 7,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F8FAFC',
+  },
+  paperActivityTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  paperActivityBullet: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#6366F1',
+  },
+  paperActivityTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0F172A',
+    flex: 1,
+  },
+  paperCategoryTag: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 3,
+  },
+  paperCategoryTagText: {
+    fontSize: 9,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  paperActivityDesc: {
+    fontSize: 10,
+    color: '#475569',
+    marginTop: 2,
+    marginLeft: 10,
+  },
+  paperCalloutBox: {
+    marginHorizontal: 14,
+    padding: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  paperCalloutTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 3,
+  },
+  paperCalloutBody: {
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  paperSignaturesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginHorizontal: 14,
+    marginTop: 18,
+    marginBottom: 12,
+    gap: 12,
+  },
+  paperSignBox: {
+    flex: 1,
+    padding: 8,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  paperSignLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#64748B',
+    textTransform: 'uppercase',
+  },
+  paperSignName: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 2,
+  },
+  paperSignStatusDone: {
+    fontSize: 9,
+    color: '#16A34A',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  paperSignPending: {
+    fontSize: 10,
+    color: '#64748B',
+    marginTop: 2,
+    fontStyle: 'italic',
+  },
+  paperSignLine: {
+    height: 1,
+    backgroundColor: '#CBD5E1',
+    marginTop: 10,
+  },
+  paperFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    backgroundColor: '#F8FAFC',
+  },
+  paperFooterText: {
+    fontSize: 9,
+    color: '#94A3B8',
+    flex: 1,
+  },
+  paperFooterDate: {
+    fontSize: 9,
+    color: '#94A3B8',
+    fontWeight: '600',
+  },
+  previewActionStack: {
+    gap: 8,
+  },
+  exportPdfButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 10,
+    gap: 6,
+  },
+  exportPdfText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  saveDraftButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 6,
+  },
+  saveDraftText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  // Historique personnel
   historySearchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
     borderWidth: 1,
-    paddingHorizontal: 14,
-    height: 48,
-    gap: 10,
-    marginBottom: 12,
-    width: '100%',
+    gap: 8,
   },
   historySearchInput: {
     flex: 1,
-    fontSize: 13,
-    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    padding: 0,
   },
   historyFiltersSection: {
-    marginBottom: 12,
-    width: '100%',
+    gap: 6,
   },
   filterPillsRow: {
     flexDirection: 'row',
-    gap: 8,
-    paddingVertical: 2,
+    gap: 6,
   },
   filterPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
     borderWidth: 1,
   },
   filterPillText: {
-    fontSize: 12,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  filterDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: '#CBD5E1',
-    alignSelf: 'center',
-    marginHorizontal: 4,
+    fontSize: 11,
   },
   kpiHistoryRow: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 14,
-    width: '100%',
   },
   kpiHistoryCard: {
     flex: 1,
-    borderWidth: 1,
-    borderRadius: 14,
     padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   kpiHistoryNumber: {
     fontSize: 18,
-    fontFamily: 'Inter_700Bold',
+    fontWeight: '800',
   },
   kpiHistoryLabel: {
-    fontSize: 9,
-    fontFamily: 'Inter_500Medium',
+    fontSize: 10,
     marginTop: 2,
-    textAlign: 'center',
   },
-  emptyHistoryCard: {
-    borderWidth: 1,
-    borderRadius: 18,
+  loadingBox: {
     padding: 30,
     alignItems: 'center',
-    gap: 10,
-    marginTop: 10,
-    width: '100%',
+    gap: 8,
   },
-  emptyHistoryIconWrap: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+  loadingText: {
+    fontSize: 12,
+  },
+  emptyHistoryCard: {
+    padding: 30,
+    borderRadius: 12,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
+  },
+  emptyHistoryIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
   },
   emptyHistoryTitle: {
-    fontSize: 16,
-    fontFamily: 'Inter_700Bold',
+    fontSize: 14,
+    fontWeight: '800',
   },
   emptyHistorySubtitle: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
+    fontSize: 11,
     textAlign: 'center',
-    lineHeight: 18,
-    maxWidth: 400,
-  },
-  resetFiltersBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 12,
-    marginTop: 6,
-  },
-  resetFiltersBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontFamily: 'Inter_700Bold',
+    marginTop: 4,
+    maxWidth: 280,
   },
   historyItemCard: {
+    padding: 12,
+    borderRadius: 12,
     borderWidth: 1,
-    borderRadius: 16,
-    padding: 14,
-    width: '100%',
+    gap: 8,
   },
   historyCardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
-    gap: 10,
+    justifyContent: 'space-between',
   },
   historyPeriodRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 6,
+    gap: 5,
   },
   historyPeriodText: {
     fontSize: 13,
-    fontFamily: 'Inter_700Bold',
+    fontWeight: '700',
   },
-  historyCollaboratorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 4,
-  },
-  historyAvatarCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  historyAvatarImg: {
-    width: '100%',
-    height: '100%',
-  },
-  historyAvatarInitials: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontFamily: 'Inter_700Bold',
-  },
-  historyCollaboratorName: {
-    fontSize: 13,
-    fontFamily: 'Inter_700Bold',
-  },
-  historyCollaboratorDept: {
+  historyWeekSubtitle: {
     fontSize: 11,
-    fontFamily: 'Inter_400Regular',
+    marginTop: 1,
   },
   historyStatusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  historyStatusBadgeText: {
-    fontSize: 10,
-    fontFamily: 'Inter_700Bold',
-  },
-  historyActsBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
     borderRadius: 6,
-  },
-  historyActsBadgeText: {
-    fontSize: 10,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  historySnippetsWrap: {
-    gap: 6,
-    marginTop: 12,
-  },
-  historySnippetBox: {
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 8,
   },
-  historySnippetTitle: {
+  historyStatusText: {
     fontSize: 10,
-    fontFamily: 'Inter_700Bold',
-    marginBottom: 2,
+    fontWeight: '700',
   },
-  historySnippetBody: {
+  historyExcerptText: {
     fontSize: 11,
-    fontFamily: 'Inter_400Regular',
     lineHeight: 15,
   },
-  historyActionsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-  },
-  historyActionBtn: {
-    flex: 1,
+  historyCardFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    borderRadius: 10,
+    justifyContent: 'space-between',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
   },
-  historyActionBtnText: {
-    fontSize: 12,
-    fontFamily: 'Inter_700Bold',
+  historyActivitiesBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  historyDownloadActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  historyDownloadActionText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
   },
 });
