@@ -193,25 +193,31 @@ export default function UsersManagementScreen() {
       return;
     }
     setSubmitting(true);
+    const passToSend = newPassword.trim() || 'Hinov2026!';
     try {
-      await apiRequest('/api/admin/users', {
+      const createdRes = await apiRequest<{ temporaryPassword?: string }>('/api/admin/users', {
         method: 'POST',
         token,
         body: {
           fullName: newFullName.trim(),
           email: newEmail.trim().toLowerCase(),
-          password: newPassword,
+          password: passToSend,
           department: newDepartment,
           role: newRole,
         },
       });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const usedPassword = createdRes?.temporaryPassword || passToSend;
       setIsAddModalOpen(false);
       setNewFullName('');
       setNewEmail('');
       setNewPassword('');
       setAddError(null);
-      setSuccessToast(`Le compte de ${newFullName} a été créé avec succès.`);
+      setSuccessToast(`Compte créé pour ${newFullName} ! Mot de passe : ${usedPassword}`);
+      Alert.alert(
+        'Compte créé avec succès',
+        `Le collaborateur ${newFullName} peut maintenant se connecter avec :\n\nEmail : ${newEmail.trim().toLowerCase()}\nMot de passe : ${usedPassword}`,
+      );
       fetchUsers();
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Une erreur est survenue lors de la création.';
@@ -221,6 +227,7 @@ export default function UsersManagementScreen() {
       setSubmitting(false);
     }
   };
+
 
   // Open Edit Modal
   const openEdit = (user: AdminUser) => {
@@ -583,15 +590,20 @@ export default function UsersManagementScreen() {
                 style={[styles.modalInput, { color: colors.foreground, borderColor: colors.input }]}
               />
 
-              <Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Mot de passe temporaire</Text>
+              <Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Mot de passe initial</Text>
               <TextInput
                 testID="new-user-password"
                 value={newPassword}
                 onChangeText={setNewPassword}
-                placeholder="Mot de passe"
+                placeholder="Par défaut : Hinov2026!"
                 placeholderTextColor={colors.mutedForeground}
+                secureTextEntry={false}
                 style={[styles.modalInput, { color: colors.foreground, borderColor: colors.input }]}
               />
+              <Text style={{ fontSize: 11, color: colors.mutedForeground, marginTop: 4, marginBottom: 12 }}>
+                Laisser vide pour utiliser le mot de passe par défaut (Hinov2026!)
+              </Text>
+
 
               <Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Département / Pôle</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillsScroll}>

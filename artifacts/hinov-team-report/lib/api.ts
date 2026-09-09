@@ -173,14 +173,29 @@ export async function apiRequest<T>(
 
     // A. Lister tous les utilisateurs
     if (method === 'GET' && !isItem) {
-      const authHeader = serviceRoleKey
-        ? { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` }
-        : { apikey: supabaseAnonKey, Authorization: `Bearer ${options.token}` };
+      // 1. Tenter via le backend d'abord (pour obtenir profils + emails complets)
+      try {
+        const beRes = await fetch(`${apiOrigin}/api/admin/users`, {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
+          },
+        });
+        if (beRes.ok) {
+          const list = await beRes.json();
+          if (Array.isArray(list)) return list as T;
+        }
+      } catch {}
 
-      // Récupération des profils
+      // 2. Fallback direct Supabase
       const profilesRes = await fetch(
         `${supabaseUrl}/rest/v1/profiles?select=id,full_name,role,department,avatar_url,created_at,updated_at&order=created_at.desc`,
-        { headers: authHeader },
+        {
+          headers: {
+            apikey: supabaseAnonKey,
+            Authorization: `Bearer ${options.token}`,
+          },
+        },
       );
       const profiles = profilesRes.ok
         ? ((await profilesRes.json()) as Array<{
@@ -193,24 +208,10 @@ export async function apiRequest<T>(
           }>)
         : [];
 
-      // Récupération des emails correspondants depuis Auth Admin
-      let authUsers: Array<{ id: string; email?: string }> = [];
-      if (serviceRoleKey) {
-        const authUsersRes = await fetch(`${supabaseUrl}/auth/v1/admin/users?per_page=100`, {
-          headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` },
-        });
-        if (authUsersRes.ok) {
-          const authData = (await authUsersRes.json()) as { users?: Array<{ id: string; email?: string }> };
-          authUsers = authData.users ?? [];
-        }
-      }
-
-      const emailMap = new Map(authUsers.map((u) => [u.id, u.email || '']));
-
       const users: AdminUser[] = profiles.map((p) => ({
         id: p.id,
         fullName: p.full_name || 'Utilisateur sans nom',
-        email: emailMap.get(p.id) || '',
+        email: '',
         role: (p.role?.toUpperCase() === 'SUPERADMIN' ? 'SUPERADMIN' : p.role?.toUpperCase() === 'ADMIN' ? 'ADMIN' : 'COLLABORATEUR'),
         department: p.department || 'Général',
         avatarUrl: p.avatar_url,
@@ -234,9 +235,7 @@ export async function apiRequest<T>(
         throw new Error('Email et nom complet requis.');
       }
 
-      if (!password || password.length < 8) {
-        throw new Error('Le mot de passe doit contenir au moins 8 caractères.');
-      }
+      const safePass = password && password.length >= 6 ? password : 'Hinov2026!';
 
       // 1. Tenter via le serveur backend dédié (qui possède la clé service_role)
       try {
@@ -246,7 +245,7 @@ export async function apiRequest<T>(
             'Content-Type': 'application/json',
             ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
           },
-          body: JSON.stringify({ email, password, fullName, department, role }),
+          body: JSON.stringify({ email: email.trim().toLowerCase(), password: safePass, fullName: fullName.trim(), department: department.trim(), role }),
         });
 
         if (backendRes.ok) {
@@ -255,7 +254,7 @@ export async function apiRequest<T>(
         }
 
         const errData = await backendRes.json().catch(() => ({}));
-        if (backendRes.status === 400 || backendRes.status === 409 || backendRes.status === 422) {
+        if (backendRes.status >= 400 && backendRes.status < 500) {
           throw new Error(errData.message || errData.detail || 'Impossible de créer cet utilisateur.');
         }
       } catch (backendErr: any) {
@@ -273,7 +272,7 @@ export async function apiRequest<T>(
         },
         body: JSON.stringify({
           email: email.trim().toLowerCase(),
-          password,
+          password: safePass,
           data: {
             full_name: fullName.trim(),
             department: department.trim(),
@@ -297,7 +296,7 @@ export async function apiRequest<T>(
         );
       }
 
-      // 3. Mise à jour de la table profiles
+      // 3. Mise à jour de la table profiles (sans colonne email)
       await fetch(`${supabaseUrl}/rest/v1/profiles`, {
         method: 'POST',
         headers: {
@@ -321,6 +320,7 @@ export async function apiRequest<T>(
         fullName: fullName.trim(),
         role: role.trim().toUpperCase(),
         department: department.trim(),
+        temporaryPassword: safePass,
       } as T;
     }
 

@@ -419,24 +419,28 @@ router.get("/admin/users", async (req, res) => {
     return;
   }
 
-  // Récupérer la liste des profils
+  // 1. Récupérer la liste des profils (sans la colonne email qui n'existe pas dans profiles)
   const profilesRes = await supabaseAdminRequest(
-    "/rest/v1/profiles?select=id,email,full_name,role,department,avatar_url,created_at&order=created_at.desc",
+    "/rest/v1/profiles?select=id,full_name,role,department,avatar_url,created_at&order=created_at.desc",
   );
   let rawProfiles = (profilesRes.ok ? await profilesRes.json() : []) as Array<Record<string, any>>;
 
   if (!Array.isArray(rawProfiles) || rawProfiles.length === 0) {
-    // Fallback avec supabaseRequest standard
     const fallbackRes = await supabaseRequest(
-      "/rest/v1/profiles?select=id,email,full_name,role,department,avatar_url,created_at&order=created_at.desc",
+      "/rest/v1/profiles?select=id,full_name,role,department,avatar_url,created_at&order=created_at.desc",
       { headers: { Authorization: `Bearer ${getBearerToken(req)}` } }
     );
     rawProfiles = (fallbackRes.ok ? await fallbackRes.json() : []) as Array<Record<string, any>>;
   }
 
+  // 2. Récupérer les emails depuis auth.users
+  const authUsersRes = await supabaseAdminRequest("/auth/v1/admin/users?per_page=100");
+  const authData = (authUsersRes.ok ? await authUsersRes.json() : {}) as { users?: Array<{ id: string; email?: string }> };
+  const emailMap = new Map((authData.users ?? []).map((u) => [u.id, u.email || ""]));
+
   const formatted = (Array.isArray(rawProfiles) ? rawProfiles : []).map((p) => ({
     id: p.id,
-    email: p.email || "",
+    email: emailMap.get(p.id) || "",
     fullName: p.full_name || p.fullName || "Collaborateur",
     role: p.role || "COLLABORATEUR",
     department: p.department || "Développement",
@@ -461,14 +465,14 @@ router.post("/admin/users", async (req, res) => {
   }
 
   const cleanEmail = String(email).trim().toLowerCase();
-  const cleanPass = password && String(password).length >= 6 ? String(password) : `Hinov@${Math.random().toString(36).slice(-6)}`;
+  const cleanPass = password && String(password).length >= 6 ? String(password) : "Hinov2026!";
   const cleanRole = role && ["ADMIN", "SUPERADMIN", "COLLABORATEUR"].includes(String(role).toUpperCase()) ? String(role).toUpperCase() : "COLLABORATEUR";
   const cleanDept = String(department || "Développement").trim();
 
   let createdUserId: string | null = null;
   let authErrorDetail = "";
 
-  // 1. Essai via Supabase Auth Admin (/auth/v1/admin/users)
+  // 1. Création via Supabase Auth Admin (/auth/v1/admin/users)
   const createAuthRes = await supabaseAdminRequest("/auth/v1/admin/users", {
     method: "POST",
     body: JSON.stringify({
@@ -488,50 +492,48 @@ router.post("/admin/users", async (req, res) => {
     createdUserId = adminAuthPayload.id || adminAuthPayload.user?.id;
   } else {
     authErrorDetail = adminAuthPayload.msg || adminAuthPayload.message || "";
-    // 2. Fallback via /auth/v1/signup
-    const signupRes = await supabaseRequest("/auth/v1/signup", {
-      method: "POST",
-      body: JSON.stringify({
-        email: cleanEmail,
-        password: cleanPass,
-        data: {
-          full_name: fullName.trim(),
-          role: cleanRole,
-          department: cleanDept,
-        },
-      }),
-    });
-    const signupPayload = (await signupRes.json().catch(() => ({}))) as Record<string, any>;
-    if (signupRes.ok && (signupPayload.id || signupPayload.user?.id)) {
-      createdUserId = signupPayload.id || signupPayload.user?.id;
+    // Si l'utilisateur existe déjà, retrouver son identifiant
+    const authUsersRes = await supabaseAdminRequest("/auth/v1/admin/users?per_page=100");
+    const authData = (authUsersRes.ok ? await authUsersRes.json() : {}) as { users?: Array<{ id: string; email?: string }> };
+    const existing = (authData.users ?? []).find((u) => u.email?.toLowerCase() === cleanEmail);
+    if (existing) {
+      createdUserId = existing.id;
     } else {
-      authErrorDetail = signupPayload.msg || signupPayload.message || authErrorDetail;
+      // 2. Fallback via /auth/v1/signup
+      const signupRes = await supabaseRequest("/auth/v1/signup", {
+        method: "POST",
+        body: JSON.stringify({
+          email: cleanEmail,
+          password: cleanPass,
+          data: {
+            full_name: fullName.trim(),
+            role: cleanRole,
+            department: cleanDept,
+          },
+        }),
+      });
+      const signupPayload = (await signupRes.json().catch(() => ({}))) as Record<string, any>;
+      if (signupRes.ok && (signupPayload.id || signupPayload.user?.id)) {
+        createdUserId = signupPayload.id || signupPayload.user?.id;
+      }
     }
   }
 
-  // 3. Si l'utilisateur existait déjà ou a été créé, insérer/mettre à jour dans public.profiles
   if (!createdUserId) {
-    // Vérifier si un profil existe déjà pour cet email
-    const existingProfileRes = await supabaseAdminRequest(`/rest/v1/profiles?email=eq.${encodeURIComponent(cleanEmail)}&select=id`);
-    const existingList = (existingProfileRes.ok ? await existingProfileRes.json() : []) as Array<{ id: string }>;
-    if (existingList && existingList[0]?.id) {
-      createdUserId = existingList[0].id;
-    } else {
-      // Générer un UUID pour le profil
-      createdUserId = `user_${Date.now()}_${Math.random().toString(36).slice(-6)}`;
-    }
+    res.status(400).json({
+      message: authErrorDetail || "Impossible de créer le compte utilisateur.",
+    });
+    return;
   }
 
-  // Insérer ou mettre à jour le profil
+  // 3. Insérer ou mettre à jour dans public.profiles avec la clé service_role (sans colonne email)
   const profileUpsertRes = await supabaseAdminRequest("/rest/v1/profiles", {
     method: "POST",
     headers: {
       Prefer: "resolution=merge-duplicates,return=representation",
-      Authorization: `Bearer ${getBearerToken(req)}`,
     },
     body: JSON.stringify({
       id: createdUserId,
-      email: cleanEmail,
       full_name: fullName.trim(),
       role: cleanRole,
       department: cleanDept,
@@ -547,6 +549,7 @@ router.post("/admin/users", async (req, res) => {
     fullName: fullName.trim(),
     role: cleanRole,
     department: cleanDept,
+    temporaryPassword: cleanPass,
     createdAt: new Date().toISOString(),
   });
 });
@@ -574,6 +577,18 @@ router.patch("/admin/users/:id", async (req, res) => {
       body: JSON.stringify(updates),
     },
   );
+
+  // Mettre à jour les métadonnées auth
+  await supabaseAdminRequest(`/auth/v1/admin/users/${encodeURIComponent(targetId)}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      user_metadata: {
+        ...(fullName ? { full_name: String(fullName).trim() } : {}),
+        ...(department ? { department: String(department).trim() } : {}),
+        ...(role ? { role: String(role).trim().toUpperCase() } : {}),
+      },
+    }),
+  }).catch(() => {});
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
