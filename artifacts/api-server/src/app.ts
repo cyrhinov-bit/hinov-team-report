@@ -115,9 +115,11 @@ const foundDist = clientDistCandidates.find((dir) => fs.existsSync(dir));
 if (foundDist) {
   logger.info({ distPath: foundDist }, "Serving static PWA frontend");
   app.use(express.static(foundDist));
-  app.get("*", (req: Request, res: Response, next: NextFunction) => {
-    if (req.path.startsWith("/api")) return next();
-    res.sendFile(path.join(foundDist, "index.html"));
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.method === "GET" && !req.path.startsWith("/api")) {
+      return res.sendFile(path.join(foundDist, "index.html"));
+    }
+    next();
   });
 }
 
