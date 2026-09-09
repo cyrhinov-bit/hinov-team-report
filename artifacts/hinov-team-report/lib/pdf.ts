@@ -106,19 +106,20 @@ export function generateReportHtml(data: ReportPdfData): string {
 
     /* BANNIÈRE D'EN-TÊTE PLEINE LARGEUR */
     .header-banner-container {
-      width: 100%;
+      width: 100% !important;
       margin-bottom: 16px;
-      border-radius: 10px;
+      border-radius: 8px;
       overflow: hidden;
       background: linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%);
       box-shadow: 0 4px 14px rgba(30, 58, 138, 0.12);
     }
     .header-banner-img {
-      width: 100%;
-      height: 120px;
-      max-height: 140px;
-      object-fit: cover;
-      display: block;
+      width: 100% !important;
+      min-width: 100% !important;
+      max-width: 100% !important;
+      height: auto !important;
+      display: block !important;
+      object-fit: cover !important;
     }
     .header-banner-placeholder {
       width: 100%;
@@ -447,7 +448,8 @@ export function generateReportHtml(data: ReportPdfData): string {
         padding: 6px;
       }
       .header-banner-img {
-        height: 80px;
+        width: 100% !important;
+        height: auto !important;
       }
       .header-banner-placeholder {
         padding: 12px 14px;

@@ -674,9 +674,15 @@ export default function ReportScreen() {
           <View style={styles.contentColumn}>
             <View style={styles.paperSheet}>
               {/* En-tête officiel */}
-              <View style={[styles.paperHeaderBanner, { backgroundColor: primaryColor }]}>
+              <View
+                style={[
+                  styles.paperHeaderBanner,
+                  { backgroundColor: primaryColor },
+                  headerBanner ? { paddingVertical: 0, paddingHorizontal: 0 } : null,
+                ]}
+              >
                 {headerBanner ? (
-                  <Image source={{ uri: headerBanner }} style={styles.paperBannerImage} resizeMode="contain" />
+                  <Image source={{ uri: headerBanner }} style={styles.paperBannerImage} resizeMode="cover" />
                 ) : (
                   <View style={styles.paperDefaultHeaderRow}>
                     <Image source={logo} style={styles.paperLogo} />
@@ -1419,10 +1425,12 @@ const styles = StyleSheet.create({
   paperHeaderBanner: {
     paddingVertical: 14,
     paddingHorizontal: 16,
+    width: '100%',
+    overflow: 'hidden',
   },
   paperBannerImage: {
     width: '100%',
-    height: 50,
+    height: 115,
   },
   paperDefaultHeaderRow: {
     flexDirection: 'row',
