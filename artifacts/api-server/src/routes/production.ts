@@ -749,9 +749,12 @@ router.get("/admin/reports", async (req, res) => {
   }
 
   const weekStart = typeof req.query.week_start === "string" ? req.query.week_start : "";
-  const filter = weekStart ? `&week_start=eq.${encodeURIComponent(weekStart)}` : "";
+  const userId = typeof req.query.user_id === "string" ? req.query.user_id : "";
+  const weekFilter = weekStart ? `&week_start=eq.${encodeURIComponent(weekStart)}` : "";
+  const userFilter = userId ? `&user_id=eq.${encodeURIComponent(userId)}` : "";
+  const filter = `${weekFilter}${userFilter}`;
 
-  // 1. Récupérer tous les rapports
+  // 1. Récupérer les rapports
   const reportsRes = await supabaseAdminRequest(
     `/rest/v1/weekly_reports?select=id,user_id,week_start,difficulties,perspectives,status,created_at,updated_at${filter}&order=week_start.desc,updated_at.desc`
   );

@@ -65,7 +65,9 @@ export default function ReportScreen() {
   const [loadingCollaborator, setLoadingCollaborator] = useState(false);
 
   // History & Filters state
+  const [historyScope, setHistoryScope] = useState<'TEAM' | 'MINE'>('TEAM');
   const [historyList, setHistoryList] = useState<ReportHistoryItem[]>([]);
+  const [historyMyList, setHistoryMyList] = useState<ReportHistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'SUBMITTED' | 'DRAFT'>('ALL');
@@ -91,8 +93,12 @@ export default function ReportScreen() {
     setLoadingHistory(true);
     try {
       if (isAdmin) {
-        const data = await apiRequest<ReportHistoryItem[]>('/api/admin/reports', { token });
-        setHistoryList(Array.isArray(data) ? data : []);
+        const [teamData, myData] = await Promise.all([
+          apiRequest<ReportHistoryItem[]>('/api/admin/reports', { token }).catch(() => []),
+          apiRequest<ReportHistoryItem[]>('/api/reports/history', { token }).catch(() => []),
+        ]);
+        setHistoryList(Array.isArray(teamData) ? teamData : []);
+        setHistoryMyList(Array.isArray(myData) ? myData : []);
       } else {
         const data = await apiRequest<ReportHistoryItem[]>('/api/reports/history', { token });
         setHistoryList(Array.isArray(data) ? data : []);
@@ -134,8 +140,15 @@ export default function ReportScreen() {
     return Array.from(set);
   }, [teamMembers, historyList]);
 
+  const currentSourceList = useMemo(() => {
+    if (isAdmin && historyScope === 'MINE') {
+      return historyMyList;
+    }
+    return historyList;
+  }, [isAdmin, historyScope, historyMyList, historyList]);
+
   const filteredHistory = useMemo(() => {
-    return historyList.filter((item) => {
+    return currentSourceList.filter((item) => {
       // 1. Recherche textuelle
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -155,6 +168,11 @@ export default function ReportScreen() {
         return false;
       }
 
+      // Si scope personnel, pas de filtre département/collaborateur
+      if (isAdmin && historyScope === 'MINE') {
+        return true;
+      }
+
       // 3. Filtre département
       if (deptFilter !== 'ALL' && item.department !== deptFilter) {
         return false;
@@ -167,7 +185,7 @@ export default function ReportScreen() {
 
       return true;
     });
-  }, [historyList, searchQuery, statusFilter, deptFilter, memberFilter]);
+  }, [currentSourceList, searchQuery, statusFilter, deptFilter, memberFilter, isAdmin, historyScope]);
 
   const loadCollaboratorReport = useCallback(async (memberId: string) => {
     setSelectedMemberId(memberId);
@@ -1068,6 +1086,125 @@ export default function ReportScreen() {
           /* MODE 3 : HISTORIQUE DES RAPPORTS AVEC RECHERCHE ET FILTRES                */
           /* ========================================================================= */
           <View style={styles.contentColumn}>
+            {/* Si Directeur/Admin : Sélecteur de Scope (Équipe vs Personnel) */}
+            {isAdmin ? (
+              <View style={[styles.historyScopeTabBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Pressable
+                  testID="scope-team-reports"
+                  onPress={() => {
+                    setHistoryScope('TEAM');
+                    setMemberFilter('ALL');
+                  }}
+                  style={[
+                    styles.historyScopeBtn,
+                    historyScope === 'TEAM' && { backgroundColor: colors.primary },
+                  ]}
+                >
+                  <Feather
+                    name="users"
+                    size={14}
+                    color={historyScope === 'TEAM' ? colors.primaryForeground : colors.mutedForeground}
+                  />
+                  <Text
+                    style={[
+                      styles.historyScopeBtnText,
+                      {
+                        color: historyScope === 'TEAM' ? colors.primaryForeground : colors.foreground,
+                        fontWeight: historyScope === 'TEAM' ? '700' : '500',
+                      },
+                    ]}
+                  >
+                    Rapports reçus de l'équipe ({historyList.length})
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  testID="scope-my-reports"
+                  onPress={() => setHistoryScope('MINE')}
+                  style={[
+                    styles.historyScopeBtn,
+                    historyScope === 'MINE' && { backgroundColor: colors.primary },
+                  ]}
+                >
+                  <Feather
+                    name="user"
+                    size={14}
+                    color={historyScope === 'MINE' ? colors.primaryForeground : colors.mutedForeground}
+                  />
+                  <Text
+                    style={[
+                      styles.historyScopeBtnText,
+                      {
+                        color: historyScope === 'MINE' ? colors.primaryForeground : colors.foreground,
+                        fontWeight: historyScope === 'MINE' ? '700' : '500',
+                      },
+                    ]}
+                  >
+                    Mon historique personnel ({historyMyList.length})
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+
+            {/* Si Scope Équipe (Direction) : Sélecteur horizontal de Collaborateurs */}
+            {isAdmin && historyScope === 'TEAM' && teamMembers.length > 0 ? (
+              <View style={[styles.historyCollabFilterBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                  <Feather name="filter" size={12} color={colors.primary} />
+                  <Text style={{ fontSize: 10, fontFamily: 'Inter_700Bold', color: colors.mutedForeground, letterSpacing: 0.8 }}>
+                    FILTRER PAR COLLABORATEUR
+                  </Text>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterPillsRow}>
+                  <Pressable
+                    onPress={() => setMemberFilter('ALL')}
+                    style={[
+                      styles.filterPill,
+                      {
+                        backgroundColor: memberFilter === 'ALL' ? colors.primary : colors.background,
+                        borderColor: memberFilter === 'ALL' ? colors.primary : colors.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.filterPillText,
+                        { color: memberFilter === 'ALL' ? colors.primaryForeground : colors.foreground, fontWeight: memberFilter === 'ALL' ? '700' : '500' },
+                      ]}
+                    >
+                      Tous les collaborateurs
+                    </Text>
+                  </Pressable>
+
+                  {teamMembers.map((m) => {
+                    const isSelected = memberFilter === m.id;
+                    return (
+                      <Pressable
+                        key={m.id}
+                        onPress={() => setMemberFilter(m.id)}
+                        style={[
+                          styles.filterPill,
+                          {
+                            backgroundColor: isSelected ? colors.primary : colors.background,
+                            borderColor: isSelected ? colors.primary : colors.border,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.filterPillText,
+                            { color: isSelected ? colors.primaryForeground : colors.foreground, fontWeight: isSelected ? '700' : '500' },
+                          ]}
+                        >
+                          {m.fullName}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            ) : null}
+
             {/* Barre de recherche avec icône loupe */}
             <View style={[styles.historySearchBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Feather name="search" size={16} color={colors.primary} />
@@ -1075,7 +1212,7 @@ export default function ReportScreen() {
                 testID="history-search-input"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
-                placeholder={isAdmin ? "Rechercher par nom, email, département, mot-clé..." : "Rechercher par mot-clé, date, projet..."}
+                placeholder={isAdmin && historyScope === 'TEAM' ? "Rechercher par collaborateur, pôle, mot-clé, date..." : "Rechercher dans mes activités, difficultés, projets..."}
                 placeholderTextColor={colors.mutedForeground}
                 style={[styles.historySearchInput, { color: colors.foreground }]}
               />
@@ -1119,8 +1256,8 @@ export default function ReportScreen() {
                   );
                 })}
 
-                {/* Filtre Pôles / Départements si Admin */}
-                {isAdmin && departmentOptions.length > 0 ? (
+                {/* Filtre Pôles / Départements si Admin et Scope Équipe */}
+                {isAdmin && historyScope === 'TEAM' && departmentOptions.length > 0 ? (
                   <>
                     <View style={styles.filterDivider} />
                     <Pressable
@@ -1754,6 +1891,35 @@ const styles = StyleSheet.create({
   /* ========================================================================= */
   /* STYLES HISTORIQUE & RECHERCHE DES RAPPORTS                                */
   /* ========================================================================= */
+  historyScopeTabBar: {
+    flexDirection: 'row',
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 4,
+    marginBottom: 12,
+    gap: 6,
+    width: '100%',
+  },
+  historyScopeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+  },
+  historyScopeBtnText: {
+    fontSize: 12,
+  },
+  historyCollabFilterBox: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 10,
+    marginBottom: 12,
+    width: '100%',
+  },
   historySearchBox: {
     flexDirection: 'row',
     alignItems: 'center',

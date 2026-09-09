@@ -21,7 +21,7 @@ import { useAppState } from '@/context/AppStateContext';
 import { useAuth } from '@/context/AuthContext';
 import { useLocalSearchParams } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
-import { AdminUser, AppSettings, AdminCollaboratorReport, apiRequest } from '@/lib/api';
+import { AdminUser, AppSettings, AdminCollaboratorReport, ReportHistoryItem, apiRequest } from '@/lib/api';
 import { exportAndShareReportPdf } from '@/lib/pdf';
 import { getCurrentWeekRange, dateToWeekDay, WEEK_DAYS } from '@/lib/constants';
 
@@ -55,9 +55,11 @@ export default function UsersManagementScreen() {
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [selectedReportUser, setSelectedReportUser] = useState<AdminUser | null>(null);
   const [collaboratorReportData, setCollaboratorReportData] = useState<AdminCollaboratorReport | null>(null);
+  const [collaboratorHistoryList, setCollaboratorHistoryList] = useState<ReportHistoryItem[]>([]);
   const [loadingReport, setLoadingReport] = useState(false);
+  const [loadingCollabHistory, setLoadingCollabHistory] = useState(false);
   const [isExportingCollaboratorPdf, setIsExportingCollaboratorPdf] = useState(false);
-  const [reportModalTab, setReportModalTab] = useState<'preview' | 'summary'>('preview');
+  const [reportModalTab, setReportModalTab] = useState<'preview' | 'summary' | 'history'>('preview');
 
   // Modal states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -257,19 +259,97 @@ export default function UsersManagementScreen() {
   const openCollaboratorReport = async (user: AdminUser) => {
     setSelectedReportUser(user);
     setCollaboratorReportData(null);
+    setCollaboratorHistoryList([]);
+    setReportModalTab('preview');
     setIsReportModalOpen(true);
     setLoadingReport(true);
+    setLoadingCollabHistory(true);
     try {
       const weekRange = getCurrentWeekRange();
+      const [currentReport, historyData] = await Promise.all([
+        apiRequest<AdminCollaboratorReport>(
+          `/api/admin/users/${user.id}/report?week_start=${weekRange.start}`,
+          { token }
+        ).catch(() => null),
+        apiRequest<ReportHistoryItem[]>(
+          `/api/admin/reports?user_id=${user.id}`,
+          { token }
+        ).catch(() => []),
+      ]);
+
+      if (currentReport) {
+        setCollaboratorReportData(currentReport);
+      }
+      if (Array.isArray(historyData)) {
+        setCollaboratorHistoryList(historyData);
+      }
+    } catch (error) {
+      Alert.alert('Erreur', error instanceof Error ? error.message : 'Impossible de récupérer les rapports de ce collaborateur.');
+    } finally {
+      setLoadingReport(false);
+      setLoadingCollabHistory(false);
+    }
+  };
+
+  const handleViewHistoricalWeek = async (weekStart: string) => {
+    if (!selectedReportUser) return;
+    setLoadingReport(true);
+    try {
       const data = await apiRequest<AdminCollaboratorReport>(
-        `/api/admin/users/${user.id}/report?week_start=${weekRange.start}`,
+        `/api/admin/users/${selectedReportUser.id}/report?week_start=${weekStart}`,
         { token }
       );
       setCollaboratorReportData(data);
+      setReportModalTab('preview');
     } catch (error) {
-      Alert.alert('Erreur', error instanceof Error ? error.message : 'Impossible de récupérer le rapport de ce collaborateur.');
+      Alert.alert('Erreur', error instanceof Error ? error.message : 'Impossible de charger ce rapport spécifique.');
     } finally {
       setLoadingReport(false);
+    }
+  };
+
+  const handleExportHistoricalReport = async (item: ReportHistoryItem) => {
+    if (!selectedReportUser) return;
+    setIsExportingCollaboratorPdf(true);
+    try {
+      const data = await apiRequest<AdminCollaboratorReport>(
+        `/api/admin/users/${selectedReportUser.id}/report?week_start=${item.weekStart}`,
+        { token }
+      );
+      const start = new Date(`${item.weekStart}T12:00:00`);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 4);
+      const weekLabel = `Du ${start.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' })} au ${end.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+
+      await exportAndShareReportPdf({
+        profile: {
+          fullName: data.profile.fullName,
+          email: data.profile.email,
+          department: data.profile.department,
+          role: data.profile.role,
+          avatarUri: data.profile.avatarUri,
+        },
+        weekLabel,
+        weekStart: item.weekStart,
+        activities: data.activities,
+        difficulties: data.report.difficulties || '',
+        perspectives: data.report.perspectives || '',
+        appSettings: {
+          id: 'default',
+          companyName,
+          pdfFooterText,
+          primaryColor,
+          secondaryColor,
+          pdfHeaderImage,
+        },
+      });
+      if (Platform.OS !== 'web') {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (error) {
+      Alert.alert('Erreur de génération', error instanceof Error ? error.message : 'Impossible d’exporter le rapport PDF.');
+    } finally {
+      setIsExportingCollaboratorPdf(false);
     }
   };
 
@@ -1178,7 +1258,7 @@ export default function UsersManagementScreen() {
               </View>
             ) : collaboratorReportData ? (
               <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Sélecteur Mode : Aperçu PDF Direct vs Synthèse */}
+                {/* Sélecteur Mode : Aperçu PDF Direct vs Synthèse vs Historique */}
                 <View style={[styles.modalTabBar, { backgroundColor: colors.background, borderColor: colors.border }]}>
                   <Pressable
                     onPress={() => setReportModalTab('preview')}
@@ -1201,7 +1281,7 @@ export default function UsersManagementScreen() {
                         },
                       ]}
                     >
-                      Aperçu PDF A4 Direct
+                      Aperçu PDF
                     </Text>
                   </Pressable>
 
@@ -1226,32 +1306,59 @@ export default function UsersManagementScreen() {
                         },
                       ]}
                     >
-                      Synthèse & Détails
+                      Synthèse
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => setReportModalTab('history')}
+                    style={[
+                      styles.modalTabButton,
+                      reportModalTab === 'history' && { backgroundColor: colors.blueSoft },
+                    ]}
+                  >
+                    <Feather
+                      name="clock"
+                      size={14}
+                      color={reportModalTab === 'history' ? colors.primary : colors.mutedForeground}
+                    />
+                    <Text
+                      style={[
+                        styles.modalTabButtonText,
+                        {
+                          color: reportModalTab === 'history' ? colors.primary : colors.mutedForeground,
+                          fontWeight: reportModalTab === 'history' ? '700' : '500',
+                        },
+                      ]}
+                    >
+                      Historique ({collaboratorHistoryList.length})
                     </Text>
                   </Pressable>
                 </View>
 
-                {/* Bouton d'action rapide Téléchargement en haut */}
-                <Pressable
-                  testID="btn-quick-download-pdf"
-                  onPress={handleExportCollaboratorPdf}
-                  disabled={isExportingCollaboratorPdf}
-                  style={({ pressed }) => [
-                    styles.quickDownloadBtn,
-                    { backgroundColor: colors.primary, opacity: isExportingCollaboratorPdf ? 0.6 : pressed ? 0.8 : 1 },
-                  ]}
-                >
-                  {isExportingCollaboratorPdf ? (
-                    <ActivityIndicator color={colors.primaryForeground} size="small" />
-                  ) : (
-                    <>
-                      <Feather name="download" size={16} color={colors.primaryForeground} />
-                      <Text style={styles.quickDownloadBtnText}>
-                        Télécharger / Exporter le PDF officiel
-                      </Text>
-                    </>
-                  )}
-                </Pressable>
+                {/* Bouton d'action rapide Téléchargement en haut (pour Preview & Summary) */}
+                {reportModalTab !== 'history' && (
+                  <Pressable
+                    testID="btn-quick-download-pdf"
+                    onPress={handleExportCollaboratorPdf}
+                    disabled={isExportingCollaboratorPdf}
+                    style={({ pressed }) => [
+                      styles.quickDownloadBtn,
+                      { backgroundColor: colors.primary, opacity: isExportingCollaboratorPdf ? 0.6 : pressed ? 0.8 : 1 },
+                    ]}
+                  >
+                    {isExportingCollaboratorPdf ? (
+                      <ActivityIndicator color={colors.primaryForeground} size="small" />
+                    ) : (
+                      <>
+                        <Feather name="download" size={16} color={colors.primaryForeground} />
+                        <Text style={styles.quickDownloadBtnText}>
+                          Télécharger / Exporter le PDF officiel
+                        </Text>
+                      </>
+                    )}
+                  </Pressable>
+                )}
 
                 {reportModalTab === 'preview' ? (
                   /* ========================================================================= */
@@ -1422,7 +1529,7 @@ export default function UsersManagementScreen() {
                       <Text style={styles.paperFooterDateModal}>Aperçu Direction</Text>
                     </View>
                   </View>
-                ) : (
+                ) : reportModalTab === 'summary' ? (
                   /* ========================================================================= */
                   /* SYNTHÈSE DES DONNÉES DU COLLABORATEUR                                     */
                   /* ========================================================================= */
@@ -1538,27 +1645,128 @@ export default function UsersManagementScreen() {
                       </Text>
                     </View>
                   </View>
+                ) : (
+                  /* ========================================================================= */
+                  /* HISTORIQUE DE TOUS LES RAPPORTS DE CE COLLABORATEUR                       */
+                  /* ========================================================================= */
+                  <View style={{ marginTop: 4 }}>
+                    <Text style={[styles.inputLabel, { color: colors.foreground, fontSize: 13, marginBottom: 8 }]}>
+                      Historique des rapports hebdomadaires ({collaboratorHistoryList.length})
+                    </Text>
+
+                    {loadingCollabHistory ? (
+                      <View style={{ padding: 24, alignItems: 'center', gap: 8 }}>
+                        <ActivityIndicator color={colors.primary} size="small" />
+                        <Text style={{ fontSize: 12, color: colors.mutedForeground }}>
+                          Chargement de l'historique...
+                        </Text>
+                      </View>
+                    ) : collaboratorHistoryList.length === 0 ? (
+                      <View style={[styles.emptyBox, { borderColor: colors.border }]}>
+                        <Feather name="folder" size={28} color={colors.mutedForeground} style={{ alignSelf: 'center', marginBottom: 6 }} />
+                        <Text style={{ fontSize: 13, fontFamily: 'Inter_600SemiBold', color: colors.foreground, textAlign: 'center' }}>
+                          Aucun rapport dans l'historique
+                        </Text>
+                        <Text style={{ fontSize: 12, color: colors.mutedForeground, textAlign: 'center', marginTop: 4 }}>
+                          Ce collaborateur n'a pas encore enregistré de rapport hebdomadaire antérieur.
+                        </Text>
+                      </View>
+                    ) : (
+                      collaboratorHistoryList.map((item) => {
+                        const start = new Date(`${item.weekStart}T12:00:00`);
+                        const end = new Date(start);
+                        end.setDate(end.getDate() + 4);
+                        const weekLabel = `Semaine du ${start.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} au ${end.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+
+                        return (
+                          <View
+                            key={item.id}
+                            style={[
+                              styles.reportActivityItem,
+                              { backgroundColor: colors.background, borderColor: colors.border, marginBottom: 8 },
+                            ]}
+                          >
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ fontSize: 13, fontFamily: 'Inter_700Bold', color: colors.foreground }}>
+                                  {weekLabel}
+                                </Text>
+                                <Text style={{ fontSize: 11, color: colors.mutedForeground, marginTop: 2 }}>
+                                  {item.activitiesCount ?? 0} activité{(item.activitiesCount ?? 0) > 1 ? 's' : ''} enregistrée{(item.activitiesCount ?? 0) > 1 ? 's' : ''}
+                                </Text>
+                              </View>
+                              <View
+                                style={[
+                                  styles.statusBadgePill,
+                                  {
+                                    backgroundColor: item.status === 'SUBMITTED' ? '#DEF7EC' : colors.orangeSoft,
+                                  },
+                                ]}
+                              >
+                                <Text
+                                  style={{
+                                    fontSize: 10,
+                                    fontFamily: 'Inter_700Bold',
+                                    color: item.status === 'SUBMITTED' ? '#03543F' : colors.warning,
+                                  }}
+                                >
+                                  {item.status === 'SUBMITTED' ? 'Soumis' : 'Brouillon'}
+                                </Text>
+                              </View>
+                            </View>
+
+                            {item.perspectives ? (
+                              <Text style={{ fontSize: 11, color: colors.mutedForeground, marginTop: 6, fontStyle: 'italic' }} numberOfLines={2}>
+                                🎯 {item.perspectives}
+                              </Text>
+                            ) : null}
+
+                            <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                              <Pressable
+                                onPress={() => handleViewHistoricalWeek(item.weekStart)}
+                                style={[styles.reportActionBtn, { backgroundColor: colors.blueSoft, flex: 1, justifyContent: 'center' }]}
+                              >
+                                <Feather name="eye" size={13} color={colors.primary} />
+                                <Text style={[styles.reportActionBtnText, { color: colors.primary }]}>Aperçu A4</Text>
+                              </Pressable>
+
+                              <Pressable
+                                onPress={() => handleExportHistoricalReport(item)}
+                                disabled={isExportingCollaboratorPdf}
+                                style={[styles.reportActionBtn, { backgroundColor: colors.primary, flex: 1, justifyContent: 'center' }]}
+                              >
+                                <Feather name="download" size={13} color={colors.primaryForeground} />
+                                <Text style={[styles.reportActionBtnText, { color: colors.primaryForeground }]}>PDF Direct</Text>
+                              </Pressable>
+                            </View>
+                          </View>
+                        );
+                      })
+                    )}
+                  </View>
                 )}
 
                 {/* Bouton Téléchargement PDF en bas */}
-                <Pressable
-                  testID="btn-download-collaborator-pdf-bottom"
-                  onPress={handleExportCollaboratorPdf}
-                  disabled={isExportingCollaboratorPdf}
-                  style={({ pressed }) => [
-                    styles.modalSubmitBtn,
-                    { backgroundColor: colors.primary, opacity: isExportingCollaboratorPdf ? 0.6 : pressed ? 0.8 : 1, marginTop: 20 },
-                  ]}
-                >
-                  {isExportingCollaboratorPdf ? (
-                    <ActivityIndicator color={colors.primaryForeground} size="small" />
-                  ) : (
-                    <>
-                      <Feather name="download" size={18} color={colors.primaryForeground} />
-                      <Text style={styles.modalSubmitText}>Télécharger le PDF officiel de ce collaborateur</Text>
-                    </>
-                  )}
-                </Pressable>
+                {reportModalTab !== 'history' && (
+                  <Pressable
+                    testID="btn-download-collaborator-pdf-bottom"
+                    onPress={handleExportCollaboratorPdf}
+                    disabled={isExportingCollaboratorPdf}
+                    style={({ pressed }) => [
+                      styles.modalSubmitBtn,
+                      { backgroundColor: colors.primary, opacity: isExportingCollaboratorPdf ? 0.6 : pressed ? 0.8 : 1, marginTop: 20 },
+                    ]}
+                  >
+                    {isExportingCollaboratorPdf ? (
+                      <ActivityIndicator color={colors.primaryForeground} size="small" />
+                    ) : (
+                      <>
+                        <Feather name="download" size={18} color={colors.primaryForeground} />
+                        <Text style={styles.modalSubmitText}>Télécharger le PDF officiel de ce collaborateur</Text>
+                      </>
+                    )}
+                  </Pressable>
+                )}
               </ScrollView>
             ) : null}
           </View>
