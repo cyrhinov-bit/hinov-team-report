@@ -82,6 +82,24 @@ export type AdminCollaboratorReport = {
   }>;
 };
 
+export type ReportHistoryItem = {
+  id: string;
+  userId: string;
+  weekStart: string;
+  difficulties: string;
+  perspectives: string;
+  status: 'SUBMITTED' | 'DRAFT' | string;
+  createdAt: string;
+  updatedAt: string;
+  fullName?: string;
+  role?: string;
+  department?: string;
+  avatarUrl?: string | null;
+  email?: string;
+  activitiesCount?: number;
+};
+
+
 export async function refreshAuthSession(refreshToken: string): Promise<{ access_token: string; refresh_token: string }> {
   const res = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
     method: 'POST',

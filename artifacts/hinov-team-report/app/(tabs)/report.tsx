@@ -21,11 +21,20 @@ import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollV
 import { useAppState } from '@/context/AppStateContext';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
-import { apiRequest, AppSettings, AdminUser, AdminCollaboratorReport } from '@/lib/api';
+import { apiRequest, AppSettings, AdminUser, AdminCollaboratorReport, ReportHistoryItem } from '@/lib/api';
 import { exportAndShareReportPdf } from '@/lib/pdf';
 import { WEEK_DAYS, getCurrentWeekRange, dateToWeekDay } from '@/lib/constants';
 
 const logo = require('@/assets/images/htr-logo.jpeg');
+
+function formatWeekLabel(wStart: string) {
+  if (!wStart) return 'Période indéfinie';
+  const start = new Date(`${wStart}T12:00:00`);
+  if (isNaN(start.getTime())) return wStart;
+  const end = new Date(start);
+  end.setDate(end.getDate() + 4);
+  return `Du ${start.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' })} au ${end.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+}
 
 export default function ReportScreen() {
   const colors = useColors();
@@ -39,7 +48,7 @@ export default function ReportScreen() {
 
   const { activities, profile, difficulties, perspectives, setDifficulties, setPerspectives } = useAppState();
   const { token } = useAuth();
-  const [activeTab, setActiveTab] = useState<'editor' | 'preview'>('editor');
+  const [activeTab, setActiveTab] = useState<'editor' | 'preview' | 'history'>('editor');
   const [isImproved, setIsImproved] = useState(false);
   const [isImproving, setIsImproving] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -55,6 +64,15 @@ export default function ReportScreen() {
   const [collaboratorReportData, setCollaboratorReportData] = useState<AdminCollaboratorReport | null>(null);
   const [loadingCollaborator, setLoadingCollaborator] = useState(false);
 
+  // History & Filters state
+  const [historyList, setHistoryList] = useState<ReportHistoryItem[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'SUBMITTED' | 'DRAFT'>('ALL');
+  const [deptFilter, setDeptFilter] = useState<string>('ALL');
+  const [memberFilter, setMemberFilter] = useState<string>('ALL');
+  const [downloadingReportId, setDownloadingReportId] = useState<string | null>(null);
+
   const headerBanner = appSettings?.pdfHeaderImage || null;
 
   useEffect(() => {
@@ -65,11 +83,26 @@ export default function ReportScreen() {
   const weekStart = weekRange.start;
   const weekEnd = weekRange.end;
   const weekLabel = useMemo(() => {
-    const start = new Date(`${weekStart}T12:00:00`);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 4);
-    return `Du ${start.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' })} au ${end.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+    return formatWeekLabel(weekStart);
   }, [weekStart]);
+
+  const fetchHistory = useCallback(async () => {
+    if (!token) return;
+    setLoadingHistory(true);
+    try {
+      if (isAdmin) {
+        const data = await apiRequest<ReportHistoryItem[]>('/api/admin/reports', { token });
+        setHistoryList(Array.isArray(data) ? data : []);
+      } else {
+        const data = await apiRequest<ReportHistoryItem[]>('/api/reports/history', { token });
+        setHistoryList(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.warn('Erreur chargement historique:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [token, isAdmin]);
 
   useEffect(() => {
     if (!token) return;
@@ -90,7 +123,51 @@ export default function ReportScreen() {
         .then((users) => setTeamMembers(users))
         .catch(() => undefined);
     }
-  }, [token, weekStart, setDifficulties, setPerspectives, isAdmin]);
+
+    fetchHistory();
+  }, [token, weekStart, setDifficulties, setPerspectives, isAdmin, fetchHistory]);
+
+  const departmentOptions = useMemo(() => {
+    const set = new Set<string>();
+    teamMembers.forEach((m) => { if (m.department) set.add(m.department); });
+    historyList.forEach((h) => { if (h.department) set.add(h.department); });
+    return Array.from(set);
+  }, [teamMembers, historyList]);
+
+  const filteredHistory = useMemo(() => {
+    return historyList.filter((item) => {
+      // 1. Recherche textuelle
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchesName = item.fullName?.toLowerCase().includes(q);
+        const matchesEmail = item.email?.toLowerCase().includes(q);
+        const matchesDept = item.department?.toLowerCase().includes(q);
+        const matchesDiff = item.difficulties?.toLowerCase().includes(q);
+        const matchesPersp = item.perspectives?.toLowerCase().includes(q);
+        const matchesWeek = item.weekStart?.toLowerCase().includes(q);
+        if (!matchesName && !matchesEmail && !matchesDept && !matchesDiff && !matchesPersp && !matchesWeek) {
+          return false;
+        }
+      }
+
+      // 2. Filtre statut
+      if (statusFilter !== 'ALL' && item.status !== statusFilter) {
+        return false;
+      }
+
+      // 3. Filtre département
+      if (deptFilter !== 'ALL' && item.department !== deptFilter) {
+        return false;
+      }
+
+      // 4. Filtre collaborateur
+      if (memberFilter !== 'ALL' && item.userId !== memberFilter) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [historyList, searchQuery, statusFilter, deptFilter, memberFilter]);
 
   const loadCollaboratorReport = useCallback(async (memberId: string) => {
     setSelectedMemberId(memberId);
@@ -213,6 +290,118 @@ export default function ReportScreen() {
     }
   };
 
+  const handlePreviewHistoricReport = async (item: ReportHistoryItem) => {
+    const isOtherUser = isAdmin && ((item.email && item.email !== profile.email) || (item.fullName && item.fullName !== profile.fullName));
+    if (isOtherUser) {
+      setSelectedMemberId(item.userId);
+      setLoadingCollaborator(true);
+      try {
+        const data = await apiRequest<AdminCollaboratorReport>(
+          `/api/admin/users/${item.userId}/report?week_start=${item.weekStart}`,
+          { token }
+        );
+        setCollaboratorReportData(data);
+        setActiveTab('preview');
+      } catch (error) {
+        Alert.alert('Erreur', error instanceof Error ? error.message : 'Impossible de charger ce rapport.');
+      } finally {
+        setLoadingCollaborator(false);
+      }
+    } else {
+      setSelectedMemberId(null);
+      setCollaboratorReportData(null);
+      try {
+        setLoadingCollaborator(true);
+        const rep = await apiRequest<{ difficulties?: string; perspectives?: string } | null>(
+          `/api/reports?week_start=${item.weekStart}`,
+          { token }
+        );
+        if (rep) {
+          setDifficulties(rep.difficulties ?? '');
+          setPerspectives(rep.perspectives ?? '');
+        }
+        setActiveTab('preview');
+      } catch {
+        Alert.alert('Erreur', 'Impossible de charger ce rapport.');
+      } finally {
+        setLoadingCollaborator(false);
+      }
+    }
+  };
+
+  const handleDownloadHistoricReport = async (item: ReportHistoryItem) => {
+    setDownloadingReportId(item.id);
+    try {
+      const itemWeekLabel = formatWeekLabel(item.weekStart);
+      const isOtherUser = isAdmin && ((item.email && item.email !== profile.email) || (item.fullName && item.fullName !== profile.fullName));
+      if (isOtherUser) {
+        const data = await apiRequest<AdminCollaboratorReport>(
+          `/api/admin/users/${item.userId}/report?week_start=${item.weekStart}`,
+          { token }
+        );
+        await exportAndShareReportPdf({
+          profile: {
+            fullName: data.profile.fullName || item.fullName || 'Collaborateur HINOV',
+            email: data.profile.email || item.email || '',
+            department: data.profile.department || item.department || 'Général',
+            role: data.profile.role || item.role || 'COLLABORATEUR',
+            avatarUri: data.profile.avatarUri || item.avatarUrl,
+          },
+          weekLabel: itemWeekLabel,
+          weekStart: item.weekStart,
+          activities: data.activities,
+          difficulties: data.report?.difficulties || item.difficulties,
+          perspectives: data.report?.perspectives || item.perspectives,
+          appSettings: {
+            id: appSettings?.id || 'default',
+            companyName,
+            pdfFooterText: appSettings?.pdfFooterText || "HINOV Team Report - Document Confidentiel d'Entreprise",
+            primaryColor,
+            secondaryColor: appSettings?.secondaryColor || '#4F46E5',
+            pdfHeaderImage: headerBanner,
+          },
+        });
+      } else {
+        const wStart = item.weekStart;
+        const startD = new Date(`${wStart}T12:00:00`);
+        const endD = new Date(startD);
+        endD.setDate(endD.getDate() + 4);
+        const endStr = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-${String(endD.getDate()).padStart(2, '0')}`;
+        const weekActs = activities.filter((a) => a.date >= wStart && a.date <= endStr);
+
+        await exportAndShareReportPdf({
+          profile: {
+            fullName: profile.fullName || 'Collaborateur HINOV',
+            email: profile.email || '',
+            department: profile.department || 'Général',
+            role: profile.role || 'COLLABORATEUR',
+            avatarUri: profile.avatarUri,
+          },
+          weekLabel: itemWeekLabel,
+          weekStart: item.weekStart,
+          activities: weekActs,
+          difficulties: item.difficulties,
+          perspectives: item.perspectives,
+          appSettings: {
+            id: appSettings?.id || 'default',
+            companyName,
+            pdfFooterText: appSettings?.pdfFooterText || "HINOV Team Report - Document Confidentiel d'Entreprise",
+            primaryColor,
+            secondaryColor: appSettings?.secondaryColor || '#4F46E5',
+            pdfHeaderImage: headerBanner,
+          },
+        });
+      }
+      if (Platform.OS !== 'web') {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (err) {
+      Alert.alert('Erreur', err instanceof Error ? err.message : 'Impossible de télécharger ce PDF.');
+    } finally {
+      setDownloadingReportId(null);
+    }
+  };
+
   return (
     <KeyboardAwareScrollViewCompat
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -270,7 +459,7 @@ export default function ReportScreen() {
         </View>
 
         {/* Sélecteur Collaborateurs pour Direction / Admin */}
-        {isAdmin && teamMembers.length > 0 ? (
+        {isAdmin && teamMembers.length > 0 && activeTab !== 'history' ? (
           <View style={[styles.teamSwitcherSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.teamSwitcherHeader}>
               <Feather name="users" size={13} color={colors.primary} />
@@ -333,7 +522,7 @@ export default function ReportScreen() {
           </View>
         ) : null}
 
-        {isViewingCollaborator ? (
+        {isViewingCollaborator && activeTab !== 'history' ? (
           <View style={[styles.viewingCollaboratorBanner, { backgroundColor: colors.blueSoft, borderColor: colors.primary }]}>
             <Feather name="eye" size={16} color={colors.primary} />
             <View style={{ flex: 1 }}>
@@ -353,14 +542,14 @@ export default function ReportScreen() {
           </View>
         ) : null}
 
-        {/* Sélecteur de Mode : Rédaction vs Aperçu Direct PDF */}
+        {/* Sélecteur de Mode : 3 Onglets (Rédaction, Aperçu Direct, Historique) */}
         <View style={[styles.tabBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Pressable
             testID="tab-editor"
             onPress={() => setActiveTab('editor')}
             style={[styles.tabButton, activeTab === 'editor' && { backgroundColor: colors.blueSoft }]}
           >
-            <Feather name="edit-3" size={15} color={activeTab === 'editor' ? colors.primary : colors.mutedForeground} />
+            <Feather name="edit-3" size={14} color={activeTab === 'editor' ? colors.primary : colors.mutedForeground} />
             <Text
               style={[
                 styles.tabButtonText,
@@ -371,7 +560,7 @@ export default function ReportScreen() {
                 },
               ]}
             >
-              Mode Rédaction
+              Rédaction
             </Text>
           </Pressable>
 
@@ -380,7 +569,7 @@ export default function ReportScreen() {
             onPress={() => setActiveTab('preview')}
             style={[styles.tabButton, activeTab === 'preview' && { backgroundColor: colors.blueSoft }]}
           >
-            <Feather name="eye" size={15} color={activeTab === 'preview' ? colors.primary : colors.mutedForeground} />
+            <Feather name="eye" size={14} color={activeTab === 'preview' ? colors.primary : colors.mutedForeground} />
             <Text
               style={[
                 styles.tabButtonText,
@@ -391,9 +580,39 @@ export default function ReportScreen() {
                 },
               ]}
             >
-              Aperçu PDF Direct
+              Aperçu PDF
             </Text>
             <View style={styles.liveDot} />
+          </Pressable>
+
+          <Pressable
+            testID="tab-history"
+            onPress={() => {
+              setActiveTab('history');
+              fetchHistory();
+            }}
+            style={[styles.tabButton, activeTab === 'history' && { backgroundColor: colors.blueSoft }]}
+          >
+            <Feather name="archive" size={14} color={activeTab === 'history' ? colors.primary : colors.mutedForeground} />
+            <Text
+              style={[
+                styles.tabButtonText,
+                {
+                  color: activeTab === 'history' ? colors.primary : colors.mutedForeground,
+                  fontWeight: activeTab === 'history' ? '700' : '500',
+                  fontSize: isSmall ? 11 : 12,
+                },
+              ]}
+            >
+              Historique
+            </Text>
+            {historyList.length > 0 ? (
+              <View style={[styles.historyCountBadge, { backgroundColor: activeTab === 'history' ? colors.primary : colors.muted }]}>
+                <Text style={[styles.historyCountBadgeText, { color: activeTab === 'history' ? colors.primaryForeground : colors.foreground }]}>
+                  {historyList.length}
+                </Text>
+              </View>
+            ) : null}
           </Pressable>
         </View>
 
@@ -589,7 +808,7 @@ export default function ReportScreen() {
               </Pressable>
             </View>
           </View>
-        ) : (
+        ) : activeTab === 'preview' ? (
           /* ========================================================================= */
           /* MODE 2 : APERÇU ÉVOLUTIF EN DIRECT (RENDU FEUILLE A4 DU PDF RESPONSIVE)   */
           /* ========================================================================= */
@@ -844,6 +1063,324 @@ export default function ReportScreen() {
               </Pressable>
             </View>
           </View>
+        ) : (
+          /* ========================================================================= */
+          /* MODE 3 : HISTORIQUE DES RAPPORTS AVEC RECHERCHE ET FILTRES                */
+          /* ========================================================================= */
+          <View style={styles.contentColumn}>
+            {/* Barre de recherche avec icône loupe */}
+            <View style={[styles.historySearchBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Feather name="search" size={16} color={colors.primary} />
+              <TextInput
+                testID="history-search-input"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder={isAdmin ? "Rechercher par nom, email, département, mot-clé..." : "Rechercher par mot-clé, date, projet..."}
+                placeholderTextColor={colors.mutedForeground}
+                style={[styles.historySearchInput, { color: colors.foreground }]}
+              />
+              {searchQuery ? (
+                <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+                  <Feather name="x-circle" size={16} color={colors.mutedForeground} />
+                </Pressable>
+              ) : null}
+            </View>
+
+            {/* Filtres de statut & Pôles */}
+            <View style={styles.historyFiltersSection}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterPillsRow}>
+                {[
+                  { key: 'ALL', label: 'Tous les statuts' },
+                  { key: 'SUBMITTED', label: '✔ Validés / Transmis' },
+                  { key: 'DRAFT', label: '⏳ Brouillons' },
+                ].map((st) => {
+                  const isSelected = statusFilter === st.key;
+                  return (
+                    <Pressable
+                      key={st.key}
+                      onPress={() => setStatusFilter(st.key as any)}
+                      style={[
+                        styles.filterPill,
+                        {
+                          backgroundColor: isSelected ? colors.primary : colors.card,
+                          borderColor: isSelected ? colors.primary : colors.border,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.filterPillText,
+                          { color: isSelected ? colors.primaryForeground : colors.foreground, fontWeight: isSelected ? '700' : '500' },
+                        ]}
+                      >
+                        {st.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+
+                {/* Filtre Pôles / Départements si Admin */}
+                {isAdmin && departmentOptions.length > 0 ? (
+                  <>
+                    <View style={styles.filterDivider} />
+                    <Pressable
+                      onPress={() => setDeptFilter('ALL')}
+                      style={[
+                        styles.filterPill,
+                        {
+                          backgroundColor: deptFilter === 'ALL' ? colors.ai : colors.card,
+                          borderColor: deptFilter === 'ALL' ? colors.ai : colors.border,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.filterPillText,
+                          { color: deptFilter === 'ALL' ? '#FFFFFF' : colors.foreground, fontWeight: deptFilter === 'ALL' ? '700' : '500' },
+                        ]}
+                      >
+                        Tous les pôles
+                      </Text>
+                    </Pressable>
+                    {departmentOptions.map((dept) => {
+                      const isSelected = deptFilter === dept;
+                      return (
+                        <Pressable
+                          key={dept}
+                          onPress={() => setDeptFilter(dept)}
+                          style={[
+                            styles.filterPill,
+                            {
+                              backgroundColor: isSelected ? colors.ai : colors.card,
+                              borderColor: isSelected ? colors.ai : colors.border,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.filterPillText,
+                              { color: isSelected ? '#FFFFFF' : colors.foreground, fontWeight: isSelected ? '700' : '500' },
+                            ]}
+                          >
+                            {dept}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </>
+                ) : null}
+              </ScrollView>
+            </View>
+
+            {/* KPI Cards Strip */}
+            <View style={styles.kpiHistoryRow}>
+              <View style={[styles.kpiHistoryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.kpiHistoryNumber, { color: colors.primary }]}>{filteredHistory.length}</Text>
+                <Text style={[styles.kpiHistoryLabel, { color: colors.mutedForeground }]}>
+                  {filteredHistory.length > 1 ? 'Rapports' : 'Rapport'}
+                </Text>
+              </View>
+              <View style={[styles.kpiHistoryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.kpiHistoryNumber, { color: '#059669' }]}>
+                  {filteredHistory.filter((h) => h.status === 'SUBMITTED').length}
+                </Text>
+                <Text style={[styles.kpiHistoryLabel, { color: colors.mutedForeground }]}>Validés & Transmis</Text>
+              </View>
+              <View style={[styles.kpiHistoryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.kpiHistoryNumber, { color: colors.ai }]}>
+                  {filteredHistory.reduce((sum, h) => sum + (h.activitiesCount || 0), 0)}
+                </Text>
+                <Text style={[styles.kpiHistoryLabel, { color: colors.mutedForeground }]}>Activités au total</Text>
+              </View>
+            </View>
+
+            {/* État de chargement */}
+            {loadingHistory ? (
+              <View style={styles.loadingBox}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
+                  Chargement de l'historique des rapports...
+                </Text>
+              </View>
+            ) : filteredHistory.length === 0 ? (
+              /* Aucun rapport trouvé */
+              <View style={[styles.emptyHistoryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={[styles.emptyHistoryIconWrap, { backgroundColor: colors.blueSoft }]}>
+                  <Feather name="folder" size={28} color={colors.primary} />
+                </View>
+                <Text style={[styles.emptyHistoryTitle, { color: colors.foreground }]}>
+                  Aucun rapport correspondant
+                </Text>
+                <Text style={[styles.emptyHistorySubtitle, { color: colors.mutedForeground }]}>
+                  {searchQuery || statusFilter !== 'ALL' || deptFilter !== 'ALL'
+                    ? 'Essayez de modifier vos critères de recherche ou de réinitialiser vos filtres.'
+                    : 'Les rapports hebdomadaires enregistrés ou validés apparaîtront automatiquement ici.'}
+                </Text>
+                {searchQuery || statusFilter !== 'ALL' || deptFilter !== 'ALL' ? (
+                  <Pressable
+                    onPress={() => {
+                      setSearchQuery('');
+                      setStatusFilter('ALL');
+                      setDeptFilter('ALL');
+                      setMemberFilter('ALL');
+                    }}
+                    style={[styles.resetFiltersBtn, { backgroundColor: colors.primary }]}
+                  >
+                    <Text style={styles.resetFiltersBtnText}>Réinitialiser les filtres</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : (
+              /* Liste des rapports archivés */
+              <View style={{ gap: 12, marginTop: 4 }}>
+                {filteredHistory.map((item) => {
+                  const isSubmitted = item.status === 'SUBMITTED';
+                  const isDownloading = downloadingReportId === item.id;
+                  const itemWeekLabel = formatWeekLabel(item.weekStart);
+
+                  return (
+                    <View
+                      key={item.id}
+                      style={[
+                        styles.historyItemCard,
+                        { backgroundColor: colors.card, borderColor: colors.border },
+                      ]}
+                    >
+                      {/* En-tête de la carte */}
+                      <View style={styles.historyCardHeader}>
+                        <View style={{ flex: 1 }}>
+                          <View style={styles.historyPeriodRow}>
+                            <Feather name="calendar" size={13} color={colors.primary} />
+                            <Text style={[styles.historyPeriodText, { color: colors.foreground }]}>
+                              {itemWeekLabel}
+                            </Text>
+                          </View>
+
+                          {isAdmin && item.fullName ? (
+                            <View style={styles.historyCollaboratorRow}>
+                              <View style={[styles.historyAvatarCircle, { backgroundColor: primaryColor }]}>
+                                {item.avatarUrl ? (
+                                  <Image source={{ uri: item.avatarUrl }} style={styles.historyAvatarImg} />
+                                ) : (
+                                  <Text style={styles.historyAvatarInitials}>
+                                    {item.fullName.slice(0, 2).toUpperCase()}
+                                  </Text>
+                                )}
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={[styles.historyCollaboratorName, { color: colors.foreground }]}>
+                                  {item.fullName}
+                                </Text>
+                                <Text style={[styles.historyCollaboratorDept, { color: colors.mutedForeground }]}>
+                                  {item.department || 'Général'} • {item.role || 'COLLABORATEUR'}
+                                </Text>
+                              </View>
+                            </View>
+                          ) : null}
+                        </View>
+
+                        {/* Statut & badge d'activités */}
+                        <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                          <View
+                            style={[
+                              styles.historyStatusBadge,
+                              { backgroundColor: isSubmitted ? '#DEF7EC' : colors.orangeSoft },
+                            ]}
+                          >
+                            <Feather
+                              name={isSubmitted ? 'check-circle' : 'clock'}
+                              size={12}
+                              color={isSubmitted ? '#03543F' : colors.warning}
+                            />
+                            <Text
+                              style={[
+                                styles.historyStatusBadgeText,
+                                { color: isSubmitted ? '#03543F' : colors.warning },
+                              ]}
+                            >
+                              {isSubmitted ? 'Validé & Transmis' : 'Brouillon'}
+                            </Text>
+                          </View>
+
+                          <View style={[styles.historyActsBadge, { backgroundColor: colors.blueSoft }]}>
+                            <Feather name="check-square" size={11} color={colors.primary} />
+                            <Text style={[styles.historyActsBadgeText, { color: colors.primary }]}>
+                              {item.activitiesCount ?? 0} activité{(item.activitiesCount ?? 0) > 1 ? 's' : ''}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      {/* Résumé des difficultés & perspectives si présentes */}
+                      {item.difficulties || item.perspectives ? (
+                        <View style={styles.historySnippetsWrap}>
+                          {item.difficulties ? (
+                            <View style={[styles.historySnippetBox, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
+                              <Text style={[styles.historySnippetTitle, { color: '#92400E' }]}>
+                                ⚠️ Difficultés :
+                              </Text>
+                              <Text numberOfLines={2} style={[styles.historySnippetBody, { color: '#78350F' }]}>
+                                {item.difficulties}
+                              </Text>
+                            </View>
+                          ) : null}
+
+                          {item.perspectives ? (
+                            <View style={[styles.historySnippetBox, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
+                              <Text style={[styles.historySnippetTitle, { color: '#065F46' }]}>
+                                🎯 Perspectives :
+                              </Text>
+                              <Text numberOfLines={2} style={[styles.historySnippetBody, { color: '#064E3B' }]}>
+                                {item.perspectives}
+                              </Text>
+                            </View>
+                          ) : null}
+                        </View>
+                      ) : null}
+
+                      {/* Boutons d'action rapides */}
+                      <View style={styles.historyActionsRow}>
+                        <Pressable
+                          testID={`preview-history-${item.id}`}
+                          onPress={() => handlePreviewHistoricReport(item)}
+                          style={({ pressed }) => [
+                            styles.historyActionBtn,
+                            { backgroundColor: colors.blueSoft, opacity: pressed ? 0.8 : 1 },
+                          ]}
+                        >
+                          <Feather name="eye" size={14} color={colors.primary} />
+                          <Text style={[styles.historyActionBtnText, { color: colors.primary }]}>
+                            Aperçu PDF Direct
+                          </Text>
+                        </Pressable>
+
+                        <Pressable
+                          testID={`download-history-${item.id}`}
+                          onPress={() => handleDownloadHistoricReport(item)}
+                          disabled={isDownloading}
+                          style={({ pressed }) => [
+                            styles.historyActionBtn,
+                            { backgroundColor: colors.primary, opacity: isDownloading ? 0.6 : pressed ? 0.85 : 1 },
+                          ]}
+                        >
+                          {isDownloading ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <>
+                              <Feather name="download" size={14} color="#FFFFFF" />
+                              <Text style={[styles.historyActionBtnText, { color: '#FFFFFF' }]}>
+                                Télécharger PDF
+                              </Text>
+                            </>
+                          )}
+                        </Pressable>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </View>
         )}
       </View>
     </KeyboardAwareScrollViewCompat>
@@ -888,6 +1425,25 @@ const styles = StyleSheet.create({
   tabButtonText: { fontFamily: 'Inter_600SemiBold' },
   liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#10B981' },
   liveDotMini: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#10B981' },
+  historyCountBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+  },
+  historyCountBadgeText: {
+    fontSize: 10,
+    fontFamily: 'Inter_700Bold',
+  },
+  loadingBox: {
+    padding: 40,
+    alignItems: 'center',
+    gap: 12,
+    width: '100%',
+  },
+  loadingText: {
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+  },
 
   /* Carte Bannière vers Aperçu */
   previewBannerCard: {
@@ -1192,6 +1748,232 @@ const styles = StyleSheet.create({
   backToMineText: {
     color: '#FFFFFF',
     fontSize: 11,
+    fontFamily: 'Inter_700Bold',
+  },
+
+  /* ========================================================================= */
+  /* STYLES HISTORIQUE & RECHERCHE DES RAPPORTS                                */
+  /* ========================================================================= */
+  historySearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    height: 48,
+    gap: 10,
+    marginBottom: 12,
+    width: '100%',
+  },
+  historySearchInput: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+  },
+  historyFiltersSection: {
+    marginBottom: 12,
+    width: '100%',
+  },
+  filterPillsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: 2,
+  },
+  filterPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  filterPillText: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  filterDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: '#CBD5E1',
+    alignSelf: 'center',
+    marginHorizontal: 4,
+  },
+  kpiHistoryRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+    width: '100%',
+  },
+  kpiHistoryCard: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  kpiHistoryNumber: {
+    fontSize: 18,
+    fontFamily: 'Inter_700Bold',
+  },
+  kpiHistoryLabel: {
+    fontSize: 9,
+    fontFamily: 'Inter_500Medium',
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  emptyHistoryCard: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 30,
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 10,
+    width: '100%',
+  },
+  emptyHistoryIconWrap: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  emptyHistoryTitle: {
+    fontSize: 16,
+    fontFamily: 'Inter_700Bold',
+  },
+  emptyHistorySubtitle: {
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    textAlign: 'center',
+    lineHeight: 18,
+    maxWidth: 400,
+  },
+  resetFiltersBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    marginTop: 6,
+  },
+  resetFiltersBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontFamily: 'Inter_700Bold',
+  },
+  historyItemCard: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 14,
+    width: '100%',
+  },
+  historyCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  historyPeriodRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  historyPeriodText: {
+    fontSize: 13,
+    fontFamily: 'Inter_700Bold',
+  },
+  historyCollaboratorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  historyAvatarCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  historyAvatarImg: {
+    width: '100%',
+    height: '100%',
+  },
+  historyAvatarInitials: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontFamily: 'Inter_700Bold',
+  },
+  historyCollaboratorName: {
+    fontSize: 13,
+    fontFamily: 'Inter_700Bold',
+  },
+  historyCollaboratorDept: {
+    fontSize: 11,
+    fontFamily: 'Inter_400Regular',
+  },
+  historyStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  historyStatusBadgeText: {
+    fontSize: 10,
+    fontFamily: 'Inter_700Bold',
+  },
+  historyActsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  historyActsBadgeText: {
+    fontSize: 10,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  historySnippetsWrap: {
+    gap: 6,
+    marginTop: 12,
+  },
+  historySnippetBox: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 8,
+  },
+  historySnippetTitle: {
+    fontSize: 10,
+    fontFamily: 'Inter_700Bold',
+    marginBottom: 2,
+  },
+  historySnippetBody: {
+    fontSize: 11,
+    fontFamily: 'Inter_400Regular',
+    lineHeight: 15,
+  },
+  historyActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  historyActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  historyActionBtnText: {
+    fontSize: 12,
     fontFamily: 'Inter_700Bold',
   },
 });

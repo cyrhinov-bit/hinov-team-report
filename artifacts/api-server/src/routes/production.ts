@@ -320,7 +320,7 @@ router.get("/reports", async (req, res) => {
   }
   const filter = weekStart ? `&week_start=eq.${encodeURIComponent(weekStart)}` : "";
   const response = await supabaseRequest(
-    `/rest/v1/weekly_reports?user_id=eq.${encodeURIComponent(user.id)}${filter}&select=id,week_start,difficulties,perspectives,improved_difficulties,improved_perspectives,status`,
+    `/rest/v1/weekly_reports?user_id=eq.${encodeURIComponent(user.id)}${filter}&select=id,week_start,difficulties,perspectives,improved_difficulties,improved_perspectives,status,created_at,updated_at&order=week_start.desc`,
     { headers: { Authorization: `Bearer ${getBearerToken(req)}` } },
   );
   const payload = await response.json().catch(() => []);
@@ -328,7 +328,56 @@ router.get("/reports", async (req, res) => {
     res.status(502).json({ message: "Impossible de récupérer le rapport.", detail: payload });
     return;
   }
-  res.json(Array.isArray(payload) ? payload[0] ?? null : payload);
+  res.json(weekStart ? (Array.isArray(payload) ? payload[0] ?? null : payload) : payload);
+});
+
+router.get("/reports/history", async (req, res) => {
+  const user = await getSupabaseUser(req);
+  if (!user) {
+    res.status(401).json({ message: "Session invalide ou expirée." });
+    return;
+  }
+
+  // 1. Récupérer tous les rapports de l'utilisateur
+  const reportsRes = await supabaseRequest(
+    `/rest/v1/weekly_reports?user_id=eq.${encodeURIComponent(user.id)}&select=id,week_start,difficulties,perspectives,improved_difficulties,improved_perspectives,status,created_at,updated_at&order=week_start.desc`,
+    { headers: { Authorization: `Bearer ${getBearerToken(req)}` } }
+  );
+  const reports = (reportsRes.ok ? await reportsRes.json() : []) as Array<Record<string, any>>;
+
+  // 2. Récupérer toutes les activités de l'utilisateur pour le décompte par semaine
+  const actsRes = await supabaseRequest(
+    `/rest/v1/activities?user_id=eq.${encodeURIComponent(user.id)}&select=id,activity_date`,
+    { headers: { Authorization: `Bearer ${getBearerToken(req)}` } }
+  );
+  const activities = (actsRes.ok ? await actsRes.json() : []) as Array<{ id: string; activity_date: string }>;
+
+  // 3. Calculer le nombre d'activités par semaine
+  const formatted = reports.map((rep) => {
+    const wStart = rep.week_start;
+    const startD = new Date(`${wStart}T12:00:00`);
+    const endD = new Date(startD);
+    endD.setDate(endD.getDate() + 6);
+    const endStr = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-${String(endD.getDate()).padStart(2, '0')}`;
+    
+    const count = activities.filter((a) => a.activity_date >= wStart && a.activity_date <= endStr).length;
+
+    return {
+      id: rep.id,
+      userId: user.id,
+      weekStart: rep.week_start,
+      difficulties: rep.difficulties || "",
+      perspectives: rep.perspectives || "",
+      improvedDifficulties: rep.improved_difficulties || null,
+      improvedPerspectives: rep.improved_perspectives || null,
+      status: rep.status || "DRAFT",
+      createdAt: rep.created_at || new Date().toISOString(),
+      updatedAt: rep.updated_at || new Date().toISOString(),
+      activitiesCount: count,
+    };
+  });
+
+  res.json(formatted);
 });
 
 router.post("/reports", async (req, res) => {
@@ -704,7 +753,7 @@ router.get("/admin/reports", async (req, res) => {
 
   // 1. Récupérer tous les rapports
   const reportsRes = await supabaseAdminRequest(
-    `/rest/v1/weekly_reports?select=id,user_id,week_start,difficulties,perspectives,status,created_at,updated_at${filter}&order=updated_at.desc`
+    `/rest/v1/weekly_reports?select=id,user_id,week_start,difficulties,perspectives,status,created_at,updated_at${filter}&order=week_start.desc,updated_at.desc`
   );
   const reports = (reportsRes.ok ? await reportsRes.json() : []) as Array<Record<string, any>>;
 
@@ -722,16 +771,40 @@ router.get("/admin/reports", async (req, res) => {
     (authData.users || []).map((u) => [u.id, u.email || ""])
   );
 
-  // 4. Enrichir les rapports
+  // 4. Récupérer les activités pour décompte
+  const actsRes = await supabaseAdminRequest(
+    "/rest/v1/activities?select=id,user_id,activity_date"
+  );
+  const allActivities = (actsRes.ok ? await actsRes.json() : []) as Array<{ id: string; user_id: string; activity_date: string }>;
+
+  // 5. Enrichir les rapports
   const enriched = reports.map((rep) => {
     const prof = profileMap.get(rep.user_id) || {};
+    const wStart = rep.week_start;
+    const startD = new Date(`${wStart}T12:00:00`);
+    const endD = new Date(startD);
+    endD.setDate(endD.getDate() + 6);
+    const endStr = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-${String(endD.getDate()).padStart(2, '0')}`;
+    
+    const count = allActivities.filter(
+      (a) => a.user_id === rep.user_id && a.activity_date >= wStart && a.activity_date <= endStr
+    ).length;
+
     return {
-      ...rep,
+      id: rep.id,
+      userId: rep.user_id,
+      weekStart: rep.week_start,
+      difficulties: rep.difficulties || "",
+      perspectives: rep.perspectives || "",
+      status: rep.status || "DRAFT",
+      createdAt: rep.created_at || new Date().toISOString(),
+      updatedAt: rep.updated_at || new Date().toISOString(),
       fullName: prof.full_name || "Collaborateur HINOV",
       role: prof.role || "COLLABORATEUR",
       department: prof.department || "Général",
       avatarUrl: prof.avatar_url || null,
       email: emailMap.get(rep.user_id) || "",
+      activitiesCount: count,
     };
   });
 
