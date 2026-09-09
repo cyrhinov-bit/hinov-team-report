@@ -149,6 +149,11 @@ export default function ReportScreen() {
 
   const filteredHistory = useMemo(() => {
     return currentSourceList.filter((item) => {
+      // Pour l'historique d'équipe de la Direction, seuls les rapports soumis sont affichés
+      if (isAdmin && historyScope === 'TEAM' && item.status !== 'SUBMITTED') {
+        return false;
+      }
+
       // 1. Recherche textuelle
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();

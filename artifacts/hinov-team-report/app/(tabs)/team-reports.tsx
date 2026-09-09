@@ -73,7 +73,6 @@ export default function TeamReportsScreen() {
 
   // Filtres et recherche
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'SUBMITTED' | 'DRAFT' | 'NOT_STARTED'>('ALL');
   const [deptFilter, setDeptFilter] = useState<string>('ALL');
 
   // Modale de prévisualisation PDF A4
@@ -161,10 +160,14 @@ export default function TeamReportsScreen() {
     return Array.from(set);
   }, [statusData]);
 
-  // Filtrage des membres
+  // Filtrage des membres (UNIQUEMENT les rapports soumis)
   const filteredMembers = useMemo(() => {
     if (!statusData?.members) return [];
     return statusData.members.filter((member) => {
+      // 1. Strictement soumis
+      if (member.status !== 'SUBMITTED') return false;
+
+      // 2. Recherche
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchName = member.fullName?.toLowerCase().includes(q);
@@ -176,15 +179,13 @@ export default function TeamReportsScreen() {
           return false;
         }
       }
-      if (statusFilter !== 'ALL' && member.status !== statusFilter) {
-        return false;
-      }
+      // 3. Département
       if (deptFilter !== 'ALL' && member.department !== deptFilter) {
         return false;
       }
       return true;
     });
-  }, [statusData, searchQuery, statusFilter, deptFilter]);
+  }, [statusData, searchQuery, deptFilter]);
 
   // Action : Marquer toutes les notifications comme lues
   const handleMarkAllNotifsRead = async () => {
@@ -523,14 +524,14 @@ export default function TeamReportsScreen() {
             style={[styles.kpiCard, styles.kpiCardPrimary]}
           >
             <View style={styles.kpiHeaderRow}>
-              <Text style={styles.kpiPrimaryLabel}>Complétion Équipe</Text>
+              <Text style={styles.kpiPrimaryLabel}>Taux de Réception des Rapports</Text>
               <View style={styles.kpiIconPillWhite}>
                 <Feather name="trending-up" size={14} color="#4F46E5" />
               </View>
             </View>
             <Text style={styles.kpiPrimaryValue}>{kpis.completionRate}%</Text>
             <Text style={styles.kpiPrimarySub}>
-              {kpis.submittedCount} rapport{kpis.submittedCount > 1 ? 's' : ''} reçu{kpis.submittedCount > 1 ? 's' : ''} sur {kpis.totalMembers}
+              {kpis.submittedCount} rapport{kpis.submittedCount > 1 ? 's' : ''} reçu{kpis.submittedCount > 1 ? 's' : ''} sur {kpis.totalMembers} collaborateurs
             </Text>
             <View style={styles.kpiProgressBarTrack}>
               <View style={[styles.kpiProgressBarFill, { width: `${Math.min(100, kpis.completionRate)}%` }]} />
@@ -540,37 +541,37 @@ export default function TeamReportsScreen() {
           {/* Rapports Reçus */}
           <View style={[styles.kpiCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.kpiHeaderRow}>
-              <Text style={[styles.kpiLabel, { color: colors.muted }]}>Reçus / Soumis</Text>
+              <Text style={[styles.kpiLabel, { color: colors.muted }]}>Rapports Reçus (Soumis)</Text>
               <View style={[styles.kpiIconPill, { backgroundColor: '#DCFCE7' }]}>
                 <Feather name="check-circle" size={14} color="#16A34A" />
               </View>
             </View>
             <Text style={[styles.kpiValue, { color: '#16A34A' }]}>{kpis.submittedCount}</Text>
-            <Text style={[styles.kpiSub, { color: colors.muted }]}>PDF prêts pour révision</Text>
+            <Text style={[styles.kpiSub, { color: colors.muted }]}>Prêts pour lecture & PDF</Text>
           </View>
 
-          {/* En cours / Brouillons */}
+          {/* En attente */}
           <View style={[styles.kpiCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.kpiHeaderRow}>
-              <Text style={[styles.kpiLabel, { color: colors.muted }]}>En cours (Brouillons)</Text>
+              <Text style={[styles.kpiLabel, { color: colors.muted }]}>En attente de soumission</Text>
               <View style={[styles.kpiIconPill, { backgroundColor: '#FEF3C7' }]}>
                 <Feather name="clock" size={14} color="#D97706" />
               </View>
             </View>
-            <Text style={[styles.kpiValue, { color: '#D97706' }]}>{kpis.draftCount}</Text>
-            <Text style={[styles.kpiSub, { color: colors.muted }]}>Activités enregistrées</Text>
+            <Text style={[styles.kpiValue, { color: '#D97706' }]}>{kpis.notStartedCount}</Text>
+            <Text style={[styles.kpiSub, { color: colors.muted }]}>Non encore transmis</Text>
           </View>
 
-          {/* Non commencés */}
+          {/* Effectif total */}
           <View style={[styles.kpiCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.kpiHeaderRow}>
-              <Text style={[styles.kpiLabel, { color: colors.muted }]}>Non commencés</Text>
-              <View style={[styles.kpiIconPill, { backgroundColor: '#FEE2E2' }]}>
-                <Feather name="alert-circle" size={14} color="#DC2626" />
+              <Text style={[styles.kpiLabel, { color: colors.muted }]}>Total Collaborateurs</Text>
+              <View style={[styles.kpiIconPill, { backgroundColor: '#EEF2FF' }]}>
+                <Feather name="users" size={14} color="#6366F1" />
               </View>
             </View>
-            <Text style={[styles.kpiValue, { color: '#DC2626' }]}>{kpis.notStartedCount}</Text>
-            <Text style={[styles.kpiSub, { color: colors.muted }]}>En attente de saisie</Text>
+            <Text style={[styles.kpiValue, { color: colors.foreground }]}>{kpis.totalMembers}</Text>
+            <Text style={[styles.kpiSub, { color: colors.muted }]}>Équipe active</Text>
           </View>
         </View>
 
@@ -582,7 +583,7 @@ export default function TeamReportsScreen() {
               testID="team-search-input"
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="Rechercher un collaborateur, département, mot-clé..."
+              placeholder="Rechercher parmi les rapports reçus (nom, pôle, mots-clés)..."
               placeholderTextColor={colors.muted}
               style={[styles.searchInput, { color: colors.foreground }]}
               clearButtonMode="while-editing"
@@ -592,38 +593,6 @@ export default function TeamReportsScreen() {
                 <Feather name="x" size={16} color={colors.muted} />
               </Pressable>
             )}
-          </View>
-
-          <View style={styles.filterChipsRow}>
-            <Text style={[styles.filterGroupLabel, { color: colors.muted }]}>Statut :</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChipsList}>
-              {[
-                { key: 'ALL', label: 'Tous' },
-                { key: 'SUBMITTED', label: '✅ Reçus (Validés)' },
-                { key: 'DRAFT', label: '⏳ En cours' },
-                { key: 'NOT_STARTED', label: '⚠️ Non commencés' },
-              ].map((tab) => (
-                <Pressable
-                  key={tab.key}
-                  onPress={() => setStatusFilter(tab.key as any)}
-                  style={[
-                    styles.filterChip,
-                    { borderColor: colors.border, backgroundColor: colors.background },
-                    statusFilter === tab.key && { backgroundColor: '#6366F1', borderColor: '#6366F1' },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.filterChipText,
-                      { color: colors.foreground },
-                      statusFilter === tab.key && { color: '#FFFFFF', fontWeight: '700' },
-                    ]}
-                  >
-                    {tab.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
           </View>
 
           {departments.length > 0 && (
@@ -674,10 +643,10 @@ export default function TeamReportsScreen() {
           )}
         </View>
 
-        {/* 5. LISTE DES COLLABORATEURS ET LEURS RAPPORTS */}
+        {/* 5. LISTE DES RAPPORTS REÇUS */}
         <View style={styles.listHeaderRow}>
           <Text style={[styles.listSectionTitle, { color: colors.foreground }]}>
-            Collaborateurs ({filteredMembers.length})
+            Rapports Reçus ({filteredMembers.length})
           </Text>
           <Text style={[styles.listSectionSubtitle, { color: colors.muted }]}>
             {selectedWeekStart}
@@ -687,14 +656,14 @@ export default function TeamReportsScreen() {
         {loading && !refreshing ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#6366F1" />
-            <Text style={[styles.loadingText, { color: colors.muted }]}>Chargement des rapports d’équipe…</Text>
+            <Text style={[styles.loadingText, { color: colors.muted }]}>Chargement des rapports reçus…</Text>
           </View>
         ) : filteredMembers.length === 0 ? (
           <View style={[styles.emptyBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Feather name="inbox" size={42} color={colors.muted} style={{ marginBottom: 12 }} />
-            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Aucun collaborateur trouvé</Text>
+            <Feather name="file-text" size={42} color={colors.muted} style={{ marginBottom: 12 }} />
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Aucun rapport reçu pour cette semaine</Text>
             <Text style={[styles.emptySubtitle, { color: colors.muted }]}>
-              Essayez de modifier votre recherche ou vos filtres de statut et de département.
+              Les rapports PDF apparaîtront ici dès que les collaborateurs auront validé et transmis leur compte-rendu hebdomadaire.
             </Text>
           </View>
         ) : (

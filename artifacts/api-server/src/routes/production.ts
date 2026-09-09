@@ -846,9 +846,9 @@ router.get("/admin/reports", async (req, res) => {
   const userFilter = userId ? `&user_id=eq.${encodeURIComponent(userId)}` : "";
   const filter = `${weekFilter}${userFilter}`;
 
-  // 1. Récupérer les rapports
+  // 1. Récupérer UNIQUEMENT les rapports SOUMIS (SUBMITTED)
   const reportsRes = await supabaseAdminRequest(
-    `/rest/v1/weekly_reports?select=id,user_id,week_start,difficulties,perspectives,status,created_at,updated_at${filter}&order=week_start.desc,updated_at.desc`
+    `/rest/v1/weekly_reports?status=eq.SUBMITTED&select=id,user_id,week_start,difficulties,perspectives,status,created_at,updated_at${filter}&order=week_start.desc,updated_at.desc`
   );
   const reports = (reportsRes.ok ? await reportsRes.json() : []) as Array<Record<string, any>>;
 
@@ -891,7 +891,7 @@ router.get("/admin/reports", async (req, res) => {
       weekStart: rep.week_start,
       difficulties: rep.difficulties || "",
       perspectives: rep.perspectives || "",
-      status: rep.status || "DRAFT",
+      status: "SUBMITTED",
       createdAt: rep.created_at || new Date().toISOString(),
       updatedAt: rep.updated_at || new Date().toISOString(),
       fullName: prof.full_name || "Collaborateur HINOV",
@@ -906,6 +906,51 @@ router.get("/admin/reports", async (req, res) => {
   res.json(enriched);
 });
 
+router.get("/admin/users/:id/reports-history", async (req, res) => {
+  const user = await getSupabaseUser(req);
+  if (!user) {
+    res.status(401).json({ message: "Session invalide ou expirée." });
+    return;
+  }
+
+  const targetUserId = req.params.id;
+
+  // 1. Récupérer uniquement les rapports SOUMIS (SUBMITTED) pour ce collaborateur
+  const reportsRes = await supabaseAdminRequest(
+    `/rest/v1/weekly_reports?user_id=eq.${encodeURIComponent(targetUserId)}&status=eq.SUBMITTED&select=id,user_id,week_start,difficulties,perspectives,status,created_at,updated_at&order=week_start.desc`
+  );
+  const reports = (reportsRes.ok ? await reportsRes.json() : []) as Array<Record<string, any>>;
+
+  // 2. Récupérer les activités pour décompte
+  const actsRes = await supabaseAdminRequest(
+    `/rest/v1/activities?user_id=eq.${encodeURIComponent(targetUserId)}&select=id,activity_date`
+  );
+  const activities = (actsRes.ok ? await actsRes.json() : []) as Array<{ id: string; activity_date: string }>;
+
+  const formatted = reports.map((rep) => {
+    const wStart = rep.week_start;
+    const startD = new Date(`${wStart}T12:00:00`);
+    const endD = new Date(startD);
+    endD.setDate(endD.getDate() + 6);
+    const endStr = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-${String(endD.getDate()).padStart(2, '0')}`;
+    const count = activities.filter((a) => a.activity_date >= wStart && a.activity_date <= endStr).length;
+
+    return {
+      id: rep.id,
+      userId: targetUserId,
+      weekStart: rep.week_start,
+      difficulties: rep.difficulties || "",
+      perspectives: rep.perspectives || "",
+      status: "SUBMITTED",
+      createdAt: rep.created_at || new Date().toISOString(),
+      updatedAt: rep.updated_at || new Date().toISOString(),
+      activitiesCount: count,
+    };
+  });
+
+  res.json(formatted);
+});
+
 router.get("/admin/users/:id/report", async (req, res) => {
   const user = await getSupabaseUser(req);
   if (!user) {
@@ -917,6 +962,18 @@ router.get("/admin/users/:id/report", async (req, res) => {
   const weekStart = typeof req.query.week_start === "string" ? req.query.week_start : "";
   if (!weekStart) {
     res.status(400).json({ message: "week_start requis." });
+    return;
+  }
+
+  // Récupérer son rapport hebdo UNIQUEMENT s'il est SOUMIS (SUBMITTED)
+  const reportRes = await supabaseAdminRequest(
+    `/rest/v1/weekly_reports?user_id=eq.${encodeURIComponent(targetUserId)}&week_start=eq.${encodeURIComponent(weekStart)}&status=eq.SUBMITTED&select=*`
+  );
+  const reports = (reportRes.ok ? await reportRes.json() : []) as Array<Record<string, any>>;
+  const report = reports[0] || null;
+
+  if (!report) {
+    res.status(404).json({ message: "Ce collaborateur n'a pas encore soumis de rapport pour cette période." });
     return;
   }
 
@@ -944,13 +1001,6 @@ router.get("/admin/users/:id/report", async (req, res) => {
   const authUserData = (authUserRes.ok ? await authUserRes.json() : {}) as { email?: string };
   const email = authUserData.email || "";
 
-  // Récupérer son rapport hebdo
-  const reportRes = await supabaseAdminRequest(
-    `/rest/v1/weekly_reports?user_id=eq.${encodeURIComponent(targetUserId)}&week_start=eq.${encodeURIComponent(weekStart)}&select=*`
-  );
-  const reports = (reportRes.ok ? await reportRes.json() : []) as Array<Record<string, any>>;
-  const report = reports[0] || null;
-
   // Récupérer ses activités pour la semaine
   const actsRes = await supabaseAdminRequest(
     `/rest/v1/activities?user_id=eq.${encodeURIComponent(targetUserId)}&activity_date=gte.${encodeURIComponent(weekStart)}&activity_date=lte.${encodeURIComponent(weekEndStr)}&order=activity_date.asc,created_at.asc`
@@ -966,11 +1016,12 @@ router.get("/admin/users/:id/report", async (req, res) => {
       avatarUri: profile.avatar_url || null,
       email,
     },
-    report: report || {
+    report: {
+      id: report.id,
       week_start: weekStart,
-      difficulties: "",
-      perspectives: "",
-      status: "DRAFT",
+      difficulties: report.difficulties || "",
+      perspectives: report.perspectives || "",
+      status: "SUBMITTED",
     },
     activities: activities.map((a) => ({
       id: a.id,
@@ -1180,15 +1231,19 @@ router.get("/admin/team-reports/status", async (req, res) => {
   const profileMap = new Map<string, Record<string, any>>();
   profiles.forEach((p) => profileMap.set(p.id, p));
 
-  // 3. Récupérer tous les rapports pour cette semaine
+  // 3. Récupérer UNIQUEMENT les rapports SOUMIS (SUBMITTED) pour cette semaine
   const reportsRes = await supabaseAdminRequest(
-    `/rest/v1/weekly_reports?week_start=eq.${encodeURIComponent(weekStart)}&select=*`
+    `/rest/v1/weekly_reports?week_start=eq.${encodeURIComponent(weekStart)}&status=eq.SUBMITTED&select=*`
   );
   const reports = (reportsRes.ok ? await reportsRes.json() : []) as Array<Record<string, any>>;
   const reportMap = new Map<string, Record<string, any>>();
-  reports.forEach((r) => reportMap.set(r.user_id, r));
+  const submittedUserIds = new Set<string>();
+  reports.forEach((r) => {
+    reportMap.set(r.user_id, r);
+    submittedUserIds.add(r.user_id);
+  });
 
-  // 4. Récupérer toutes les activités de la semaine
+  // 4. Récupérer toutes les activités de la semaine pour ces collaborateurs
   const actsRes = await supabaseAdminRequest(
     `/rest/v1/activities?activity_date=gte.${encodeURIComponent(weekStart)}&activity_date=lte.${encodeURIComponent(weekEndStr)}&select=id,user_id`
   );
@@ -1198,41 +1253,35 @@ router.get("/admin/team-reports/status", async (req, res) => {
     activityCountMap.set(a.user_id, (activityCountMap.get(a.user_id) || 0) + 1);
   });
 
-  // 5. Synthétiser l'état de chaque membre
-  const members = profiles.map((p) => {
-    const rep = reportMap.get(p.id);
-    const actCount = activityCountMap.get(p.id) || 0;
-    const email = emailMap.get(p.id) || "";
+  // 5. Synthétiser UNIQUEMENT les collaborateurs ayant effectivement soumis leur rapport
+  const members = profiles
+    .filter((p) => submittedUserIds.has(p.id))
+    .map((p) => {
+      const rep = reportMap.get(p.id);
+      const actCount = activityCountMap.get(p.id) || 0;
+      const email = emailMap.get(p.id) || "";
 
-    let status: "SUBMITTED" | "DRAFT" | "NOT_STARTED" = "NOT_STARTED";
-    if (rep?.status === "SUBMITTED") {
-      status = "SUBMITTED";
-    } else if (rep?.status === "DRAFT" || actCount > 0 || rep?.difficulties || rep?.perspectives) {
-      status = "DRAFT";
-    }
+      return {
+        id: p.id,
+        userId: p.id,
+        fullName: p.full_name || "Collaborateur",
+        email,
+        role: p.role || "COLLABORATEUR",
+        department: p.department || "Général",
+        avatarUrl: p.avatar_url || null,
+        status: "SUBMITTED" as const,
+        activitiesCount: actCount,
+        difficulties: rep?.difficulties || "",
+        perspectives: rep?.perspectives || "",
+        submittedAt: rep?.updated_at || rep?.created_at || null,
+        updatedAt: rep?.updated_at || null,
+        reportId: rep?.id || null,
+      };
+    });
 
-    return {
-      id: p.id,
-      userId: p.id,
-      fullName: p.full_name || "Collaborateur",
-      email,
-      role: p.role || "COLLABORATEUR",
-      department: p.department || "Général",
-      avatarUrl: p.avatar_url || null,
-      status,
-      activitiesCount: actCount,
-      difficulties: rep?.difficulties || "",
-      perspectives: rep?.perspectives || "",
-      submittedAt: rep?.status === "SUBMITTED" ? rep.updated_at || rep.created_at : null,
-      updatedAt: rep?.updated_at || null,
-      reportId: rep?.id || null,
-    };
-  });
-
-  const totalMembers = members.length;
-  const submittedCount = members.filter((m) => m.status === "SUBMITTED").length;
-  const draftCount = members.filter((m) => m.status === "DRAFT").length;
-  const notStartedCount = members.filter((m) => m.status === "NOT_STARTED").length;
+  const totalMembers = profiles.length;
+  const submittedCount = members.length;
+  const pendingCount = Math.max(0, totalMembers - submittedCount);
   const completionRate = totalMembers > 0 ? Math.round((submittedCount / totalMembers) * 100) : 0;
 
   res.json({
@@ -1241,8 +1290,8 @@ router.get("/admin/team-reports/status", async (req, res) => {
     kpis: {
       totalMembers,
       submittedCount,
-      draftCount,
-      notStartedCount,
+      draftCount: 0,
+      notStartedCount: pendingCount,
       completionRate,
     },
     members,
