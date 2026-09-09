@@ -24,7 +24,17 @@
       ]
     },
     "web": {
-      "favicon": "./assets/images/icon.png"
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/icon.png",
+      "name": "HINOV Team Report",
+      "shortName": "HTR",
+      "description": "Application de rapports d'activités et suivi d'équipe HINOV",
+      "themeColor": "#0F172A",
+      "backgroundColor": "#0F172A",
+      "display": "standalone",
+      "orientation": "portrait",
+      "lang": "fr"
     },
     "plugins": [
       "expo-router"

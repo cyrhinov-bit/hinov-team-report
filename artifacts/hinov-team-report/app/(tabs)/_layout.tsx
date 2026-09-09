@@ -1,48 +1,24 @@
 import React, { useEffect } from 'react';
 import { Platform, StyleSheet, useColorScheme, View } from 'react-native';
 import { useColors } from '@/hooks/useColors';
-import { Feather } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Tabs } from 'expo-router';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
-import { SymbolView } from 'expo-symbols';
 import { router } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { useAppState } from '@/context/AppStateContext';
+import { AnimatedTabIcon } from '@/components/AnimatedTabIcon';
 
-function NativeTabLayout({ isAdmin }: { isAdmin: boolean }) {
-  return (
-    <NativeTabs>
-      <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} />
-        <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="activities">
-        <NativeTabs.Trigger.Icon sf={{ default: 'checklist', selected: 'checklist' }} />
-        <NativeTabs.Trigger.Label>Activités</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="report">
-        <NativeTabs.Trigger.Icon sf={{ default: 'doc.text', selected: 'doc.text.fill' }} />
-        <NativeTabs.Trigger.Label>Rapport</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-      {isAdmin ? (
-        <NativeTabs.Trigger name="users">
-          <NativeTabs.Trigger.Icon sf={{ default: 'person.3', selected: 'person.3.fill' }} />
-          <NativeTabs.Trigger.Label>Équipe</NativeTabs.Trigger.Label>
-        </NativeTabs.Trigger>
-      ) : null}
-      <NativeTabs.Trigger name="profile">
-        <NativeTabs.Trigger.Icon sf={{ default: 'person', selected: 'person.fill' }} />
-        <NativeTabs.Trigger.Label>Profil</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="ai-settings">
-        <NativeTabs.Trigger.Icon sf={{ default: 'sparkles', selected: 'sparkles' }} />
-        <NativeTabs.Trigger.Label>Paramètres IA</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-    </NativeTabs>
-  );
-}
+// Palette de couleurs distinctes et vivantes par onglet
+export const TAB_COLORS = {
+  home: '#3B82F6',       // Bleu dynamique (Accueil)
+  activities: '#10B981', // Vert émeraude (Activités)
+  report: '#8B5CF6',     // Violet moderne (Rapport)
+  users: '#F59E0B',      // Orange ambré (Équipe)
+  profile: '#EC4899',    // Rose framboise (Profil)
+  aiSettings: '#06B6D4', // Cyan technologique (IA)
+};
 
 function ClassicTabLayout({ isAdmin }: { isAdmin: boolean }) {
   const colors = useColors();
@@ -54,58 +30,84 @@ function ClassicTabLayout({ isAdmin }: { isAdmin: boolean }) {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.mutedForeground,
         headerShown: false,
+        tabBarInactiveTintColor: '#94A3B8',
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
+          marginTop: 2,
+        },
         tabBarStyle: {
           position: 'absolute',
-          backgroundColor: isIOS ? 'transparent' : colors.background,
-          borderTopWidth: isWeb ? 1 : 0,
-          borderTopColor: colors.border,
-          elevation: 0,
-          ...(isWeb ? { height: 84 } : {}),
+          backgroundColor: isIOS ? 'transparent' : (isDark ? '#0F172A' : '#FFFFFF'),
+          borderTopWidth: 1,
+          borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+          elevation: 8,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: isDark ? 0.3 : 0.08,
+          shadowRadius: 8,
+          height: Platform.select({ ios: 88, android: 68, default: 72 }),
+          paddingBottom: Platform.select({ ios: 28, android: 8, default: 10 }),
+          paddingTop: 8,
         },
         tabBarBackground: () =>
           isIOS ? (
             <BlurView
-              intensity={100}
+              intensity={95}
               tint={isDark ? 'dark' : 'light'}
               style={StyleSheet.absoluteFill}
             />
-          ) : isWeb ? (
+          ) : (
             <View
               style={[
                 StyleSheet.absoluteFill,
-                { backgroundColor: colors.background },
+                { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' },
               ]}
             />
-          ) : null,
+          ),
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="house" tintColor={color} size={24} />
-            ) : (
-              <Feather name="home" size={22} color={color} />
-            ),
+          title: 'Accueil',
+          tabBarActiveTintColor: TAB_COLORS.home,
+          tabBarIcon: ({ focused }) => (
+            <AnimatedTabIcon
+              focused={focused}
+              name="home"
+              tabColor={TAB_COLORS.home}
+            />
+          ),
         }}
       />
       <Tabs.Screen
         name="activities"
         options={{
           title: 'Activités',
-          tabBarIcon: ({ color }) => <Feather name="check-square" size={21} color={color} />,
+          tabBarActiveTintColor: TAB_COLORS.activities,
+          tabBarIcon: ({ focused }) => (
+            <AnimatedTabIcon
+              focused={focused}
+              name="check-square"
+              tabColor={TAB_COLORS.activities}
+            />
+          ),
         }}
       />
       <Tabs.Screen
         name="report"
         options={{
           title: 'Rapport',
-          tabBarIcon: ({ color }) => <Feather name="file-text" size={21} color={color} />,
+          tabBarActiveTintColor: TAB_COLORS.report,
+          tabBarIcon: ({ focused }) => (
+            <AnimatedTabIcon
+              focused={focused}
+              name="file-text"
+              tabColor={TAB_COLORS.report}
+            />
+          ),
         }}
       />
       <Tabs.Screen
@@ -113,21 +115,42 @@ function ClassicTabLayout({ isAdmin }: { isAdmin: boolean }) {
         options={{
           title: 'Équipe',
           href: isAdmin ? '/users' : null,
-          tabBarIcon: ({ color }) => <Feather name="users" size={21} color={color} />,
+          tabBarActiveTintColor: TAB_COLORS.users,
+          tabBarIcon: ({ focused }) => (
+            <AnimatedTabIcon
+              focused={focused}
+              name="users"
+              tabColor={TAB_COLORS.users}
+            />
+          ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Profil',
-          tabBarIcon: ({ color }) => <Feather name="user" size={21} color={color} />,
+          tabBarActiveTintColor: TAB_COLORS.profile,
+          tabBarIcon: ({ focused }) => (
+            <AnimatedTabIcon
+              focused={focused}
+              name="user"
+              tabColor={TAB_COLORS.profile}
+            />
+          ),
         }}
       />
       <Tabs.Screen
         name="ai-settings"
         options={{
-          title: 'Paramètres IA',
-          tabBarIcon: ({ color }) => <Feather name="zap" size={21} color={color} />,
+          title: 'IA',
+          tabBarActiveTintColor: TAB_COLORS.aiSettings,
+          tabBarIcon: ({ focused }) => (
+            <AnimatedTabIcon
+              focused={focused}
+              name="zap"
+              tabColor={TAB_COLORS.aiSettings}
+            />
+          ),
         }}
       />
     </Tabs>
@@ -147,8 +170,5 @@ export default function TabLayout() {
   }, [isHydrated, token]);
 
   if (!isHydrated || !token) return null;
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout isAdmin={isAdmin} />;
-  }
   return <ClassicTabLayout isAdmin={isAdmin} />;
 }
