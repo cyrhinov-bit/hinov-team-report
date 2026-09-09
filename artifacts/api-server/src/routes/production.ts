@@ -30,6 +30,40 @@ router.post("/auth/login", async (req, res) => {
   res.json(payload);
 });
 
+router.post(["/auth/forgot-password", "/auth/recover"], async (req, res) => {
+  const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  if (!email) {
+    res.status(400).json({ message: "Email professionnel requis." });
+    return;
+  }
+
+  try {
+    const response = await supabaseRequest("/auth/v1/recover", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+
+    const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!response.ok) {
+      res.status(response.status).json({
+        message: "Impossible d'envoyer l'email automatique de récupération.",
+        detail: payload,
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      message: "Un email contenant le lien de réinitialisation a été envoyé à votre adresse.",
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Erreur lors de la demande de réinitialisation.",
+      detail: error instanceof Error ? error.message : "Erreur inconnue",
+    });
+  }
+});
+
 router.post("/auth/refresh", async (req, res) => {
   const refreshToken = typeof req.body?.refreshToken === "string" ? req.body.refreshToken.trim() : "";
   if (!refreshToken) {
@@ -562,7 +596,7 @@ router.patch("/admin/users/:id", async (req, res) => {
   }
 
   const targetId = req.params.id;
-  const { fullName, department, role } = req.body ?? {};
+  const { fullName, department, role, password } = req.body ?? {};
 
   const updates: Record<string, any> = { updated_at: new Date().toISOString() };
   if (fullName !== undefined) updates.full_name = String(fullName).trim();
@@ -578,16 +612,22 @@ router.patch("/admin/users/:id", async (req, res) => {
     },
   );
 
-  // Mettre à jour les métadonnées auth
+  // Mettre à jour les métadonnées auth & le mot de passe si renseigné
+  const authUpdatePayload: Record<string, any> = {
+    user_metadata: {
+      ...(fullName ? { full_name: String(fullName).trim() } : {}),
+      ...(department ? { department: String(department).trim() } : {}),
+      ...(role ? { role: String(role).trim().toUpperCase() } : {}),
+    },
+  };
+  if (password && String(password).length >= 6) {
+    authUpdatePayload.password = String(password);
+    authUpdatePayload.email_confirm = true;
+  }
+
   await supabaseAdminRequest(`/auth/v1/admin/users/${encodeURIComponent(targetId)}`, {
     method: "PUT",
-    body: JSON.stringify({
-      user_metadata: {
-        ...(fullName ? { full_name: String(fullName).trim() } : {}),
-        ...(department ? { department: String(department).trim() } : {}),
-        ...(role ? { role: String(role).trim().toUpperCase() } : {}),
-      },
-    }),
+    body: JSON.stringify(authUpdatePayload),
   }).catch(() => {});
 
   const payload = await response.json().catch(() => ({}));
@@ -597,6 +637,39 @@ router.patch("/admin/users/:id", async (req, res) => {
   }
 
   res.json(Array.isArray(payload) ? payload[0] : payload);
+});
+
+router.post("/admin/users/:id/reset-password", async (req, res) => {
+  const user = await getSupabaseUser(req);
+  if (!user) {
+    res.status(401).json({ message: "Session invalide ou expirée." });
+    return;
+  }
+
+  const targetId = req.params.id;
+  const newPass = req.body?.password && String(req.body.password).length >= 6
+    ? String(req.body.password)
+    : "Hinov2026!";
+
+  const resetRes = await supabaseAdminRequest(`/auth/v1/admin/users/${encodeURIComponent(targetId)}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      password: newPass,
+      email_confirm: true,
+    }),
+  });
+
+  const payload = (await resetRes.json().catch(() => ({}))) as Record<string, any>;
+  if (!resetRes.ok) {
+    res.status(502).json({ message: "Impossible de réinitialiser le mot de passe.", detail: payload });
+    return;
+  }
+
+  res.json({
+    success: true,
+    temporaryPassword: newPass,
+    message: "Mot de passe réinitialisé avec succès.",
+  });
 });
 
 router.delete("/admin/users/:id", async (req, res) => {

@@ -67,6 +67,8 @@ export default function UsersManagementScreen() {
   const [editFullName, setEditFullName] = useState('');
   const [editDepartment, setEditDepartment] = useState('');
   const [editRole, setEditRole] = useState<RoleOption>('COLLABORATEUR');
+  const [customResetPassword, setCustomResetPassword] = useState('');
+  const [resettingPassword, setResettingPassword] = useState(false);
 
   // App & PDF Settings state
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -235,7 +237,37 @@ export default function UsersManagementScreen() {
     setEditFullName(user.fullName);
     setEditDepartment(user.department);
     setEditRole(user.role);
+    setCustomResetPassword('');
     setIsEditModalOpen(true);
+  };
+
+  // Handle Reset User Password
+  const handleResetUserPassword = async () => {
+    if (!selectedUser) return;
+    const passToSet = customResetPassword.trim() || 'Hinov2026!';
+    setResettingPassword(true);
+    try {
+      const res = await apiRequest<{ temporaryPassword?: string; message?: string }>(
+        `/api/admin/users/${selectedUser.id}/reset-password`,
+        {
+          method: 'POST',
+          token,
+          body: { password: passToSet },
+        }
+      );
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const finalPass = res?.temporaryPassword || passToSet;
+      setCustomResetPassword('');
+      Alert.alert(
+        'Mot de passe réinitialisé',
+        `Le mot de passe de ${selectedUser.fullName} a été mis à jour avec succès.\n\nNouveau mot de passe : ${finalPass}\n\nTransmettez ce mot de passe au collaborateur.`
+      );
+      setSuccessToast(`Mot de passe réinitialisé pour ${selectedUser.fullName} : ${finalPass}`);
+    } catch (error) {
+      Alert.alert('Erreur', error instanceof Error ? error.message : 'Impossible de réinitialiser le mot de passe.');
+    } finally {
+      setResettingPassword(false);
+    }
   };
 
   // Handle Save Edit
@@ -763,6 +795,47 @@ export default function UsersManagementScreen() {
                 })}
               </View>
 
+              {/* Réinitialisation de mot de passe */}
+              <View style={{ marginTop: 22, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <Feather name="key" size={14} color={colors.primary} />
+                  <Text style={[styles.inputLabel, { color: colors.foreground, marginTop: 0, marginBottom: 0 }]}>
+                    Réinitialiser le mot de passe
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 11, color: colors.mutedForeground, marginBottom: 8, lineHeight: 16 }}>
+                  Définissez un mot de passe ou laissez vide pour utiliser <Text style={{ fontFamily: 'Inter_700Bold' }}>Hinov2026!</Text>
+                </Text>
+                <TextInput
+                  value={customResetPassword}
+                  onChangeText={setCustomResetPassword}
+                  placeholder="Laisser vide pour Hinov2026!"
+                  placeholderTextColor={colors.mutedForeground}
+                  secureTextEntry
+                  style={[styles.modalInput, { color: colors.foreground, borderColor: colors.input, marginBottom: 10 }]}
+                />
+                <Pressable
+                  testID="btn-reset-user-password"
+                  onPress={handleResetUserPassword}
+                  disabled={resettingPassword}
+                  style={({ pressed }) => [
+                    styles.resetPassBtn,
+                    { backgroundColor: colors.muted, borderColor: colors.border, opacity: resettingPassword ? 0.6 : pressed ? 0.8 : 1 },
+                  ]}
+                >
+                  {resettingPassword ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <>
+                      <Feather name="refresh-cw" size={14} color={colors.primary} />
+                      <Text style={[styles.resetPassBtnText, { color: colors.primary }]}>
+                        Réinitialiser l'accès du collaborateur
+                      </Text>
+                    </>
+                  )}
+                </Pressable>
+              </View>
+
               <Pressable
                 testID="submit-update-user"
                 onPress={handleUpdateUser}
@@ -1083,6 +1156,21 @@ const styles = StyleSheet.create({
   roleSelectionRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
   roleSelectBtn: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
   roleSelectText: { fontSize: 11, fontFamily: 'Inter_700Bold' },
+  resetPassBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    height: 42,
+    marginTop: 2,
+    marginBottom: 4,
+  },
+  resetPassBtnText: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+  },
   modalSubmitBtn: {
     height: 48,
     borderRadius: 14,
