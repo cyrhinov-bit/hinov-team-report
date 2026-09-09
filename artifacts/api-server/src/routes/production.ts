@@ -8,6 +8,23 @@ import {
   supabaseAdminRequest,
 } from "../lib/supabase";
 
+export interface BackendNotification {
+  id: string;
+  userId: string;
+  senderId: string;
+  senderName: string;
+  senderAvatar?: string | null;
+  senderDepartment?: string;
+  title: string;
+  message: string;
+  type: string;
+  data: Record<string, any>;
+  isRead: boolean;
+  createdAt: string;
+}
+
+const inMemoryNotifications: BackendNotification[] = [];
+
 const router: IRouter = Router();
 
 router.post("/auth/login", async (req, res) => {
@@ -417,7 +434,82 @@ router.post("/reports", async (req, res) => {
     res.status(502).json({ message: "Impossible d’enregistrer le rapport.", detail: payload });
     return;
   }
-  res.json(Array.isArray(payload) ? payload[0] : payload);
+
+  const savedReport = Array.isArray(payload) ? payload[0] : payload;
+
+  // Si le statut est SUBMITTED, notifier tous les Administrateurs / Directeurs
+  if (status === "SUBMITTED") {
+    try {
+      // 1. Récupérer le profil du collaborateur
+      const senderProfRes = await supabaseRequest(
+        `/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=full_name,department,avatar_url`,
+        { headers: { Authorization: `Bearer ${getBearerToken(req)}` } }
+      );
+      const senderProfiles = (senderProfRes.ok ? await senderProfRes.json() : []) as Array<Record<string, any>>;
+      const senderName = senderProfiles[0]?.full_name || "Un collaborateur";
+      const senderAvatar = senderProfiles[0]?.avatar_url || null;
+      const senderDept = senderProfiles[0]?.department || "Général";
+
+      // 2. Formater la date de la semaine
+      const start = new Date(`${week_start}T12:00:00`);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 4);
+      const weekLabel = `du ${start.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} au ${end.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+
+      // 3. Récupérer tous les administrateurs et directeurs
+      const adminsRes = await supabaseAdminRequest(
+        `/rest/v1/profiles?role=in.(ADMIN,SUPERADMIN)&select=id,full_name,role`
+      );
+      const admins = (adminsRes.ok ? await adminsRes.json() : []) as Array<{ id: string; full_name?: string }>;
+
+      const notifTime = new Date().toISOString();
+      for (const admin of admins) {
+        // Éviter de se notifier soi-même si un admin soumet son propre rapport
+        if (admin.id !== user.id) {
+          const newNotif = {
+            id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            userId: admin.id,
+            senderId: user.id,
+            senderName,
+            senderAvatar,
+            senderDepartment: senderDept,
+            title: "Nouveau rapport hebdomadaire reçu",
+            message: `${senderName} (${senderDept}) a validé et transmis son rapport officiel pour la semaine ${weekLabel}.`,
+            type: "REPORT_SUBMITTED",
+            data: {
+              reportId: savedReport?.id,
+              userId: user.id,
+              weekStart: week_start,
+              submittedAt: notifTime,
+            },
+            isRead: false,
+            createdAt: notifTime,
+          };
+          inMemoryNotifications.unshift(newNotif);
+
+          // Tenter l'insertion en base Supabase
+          supabaseAdminRequest("/rest/v1/notifications", {
+            method: "POST",
+            body: JSON.stringify({
+              id: newNotif.id,
+              user_id: newNotif.userId,
+              sender_id: newNotif.senderId,
+              title: newNotif.title,
+              message: newNotif.message,
+              type: newNotif.type,
+              data: newNotif.data,
+              is_read: false,
+              created_at: notifTime,
+            }),
+          }).catch(() => {});
+        }
+      }
+    } catch {
+      // Ignorer les erreurs de notification pour ne pas bloquer l'enregistrement du rapport
+    }
+  }
+
+  res.json(savedReport);
 });
 
 router.post("/reports/improve", async (req, res) => {
@@ -946,6 +1038,215 @@ router.post("/app-settings", async (req, res) => {
   }).catch(() => {});
 
   res.json(inMemoryAppSettings);
+});
+
+// ==========================================
+// NOTIFICATIONS SYSTÈME & DIRECTION
+// ==========================================
+
+router.get("/notifications", async (req, res) => {
+  const user = await getSupabaseUser(req);
+  if (!user) {
+    res.status(401).json({ message: "Session invalide ou expirée." });
+    return;
+  }
+
+  // Récupérer depuis in-memory et fusionner avec DB si possible
+  let userNotifs = inMemoryNotifications.filter((n) => n.userId === user.id);
+
+  try {
+    const dbRes = await supabaseAdminRequest(
+      `/rest/v1/notifications?user_id=eq.${encodeURIComponent(user.id)}&order=created_at.desc&limit=50`
+    );
+    if (dbRes.ok) {
+      const dbNotifs = (await dbRes.json()) as Array<Record<string, any>>;
+      if (Array.isArray(dbNotifs) && dbNotifs.length > 0) {
+        const dbFormatted = dbNotifs.map((n) => ({
+          id: n.id,
+          userId: n.user_id,
+          senderId: n.sender_id,
+          senderName: n.sender_name || "Collaborateur",
+          senderAvatar: n.sender_avatar || null,
+          senderDepartment: n.sender_department || "Général",
+          title: n.title || "Notification",
+          message: n.message || "",
+          type: n.type || "REPORT_SUBMITTED",
+          data: n.data || {},
+          isRead: !!n.is_read,
+          createdAt: n.created_at || new Date().toISOString(),
+        }));
+        
+        // Fusionner sans doublons
+        const map = new Map<string, BackendNotification>();
+        userNotifs.forEach((n) => map.set(n.id, n));
+        dbFormatted.forEach((n) => map.set(n.id, n));
+        userNotifs = Array.from(map.values()).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      }
+    }
+  } catch {
+    // Utiliser inMemoryNotifications
+  }
+
+  const unreadCount = userNotifs.filter((n) => !n.isRead).length;
+
+  res.json({
+    notifications: userNotifs,
+    unreadCount,
+  });
+});
+
+router.patch("/notifications/:id/read", async (req, res) => {
+  const user = await getSupabaseUser(req);
+  if (!user) {
+    res.status(401).json({ message: "Session invalide ou expirée." });
+    return;
+  }
+
+  const notifId = req.params.id;
+  const notif = inMemoryNotifications.find((n) => n.id === notifId && n.userId === user.id);
+  if (notif) {
+    notif.isRead = true;
+  }
+
+  // Mettre à jour en DB
+  supabaseAdminRequest(`/rest/v1/notifications?id=eq.${encodeURIComponent(notifId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ is_read: true }),
+  }).catch(() => {});
+
+  res.json({ success: true, id: notifId });
+});
+
+router.post("/notifications/mark-all-read", async (req, res) => {
+  const user = await getSupabaseUser(req);
+  if (!user) {
+    res.status(401).json({ message: "Session invalide ou expirée." });
+    return;
+  }
+
+  inMemoryNotifications.forEach((n) => {
+    if (n.userId === user.id) {
+      n.isRead = true;
+    }
+  });
+
+  // Mettre à jour en DB
+  supabaseAdminRequest(`/rest/v1/notifications?user_id=eq.${encodeURIComponent(user.id)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ is_read: true }),
+  }).catch(() => {});
+
+  res.json({ success: true, message: "Toutes les notifications ont été marquées comme lues." });
+});
+
+// ==========================================
+// TABLEAU DE BORD "RAPPORTS ÉQUIPE" (DIRECTION)
+// ==========================================
+
+router.get("/admin/team-reports/status", async (req, res) => {
+  const user = await getSupabaseUser(req);
+  if (!user) {
+    res.status(401).json({ message: "Session invalide ou expirée." });
+    return;
+  }
+
+  let weekStart = typeof req.query.week_start === "string" ? req.query.week_start : "";
+  if (!weekStart) {
+    // Semaine actuelle par défaut (lundi)
+    const now = new Date();
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(now.setDate(diff));
+    weekStart = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+  }
+
+  const weekStartDate = new Date(`${weekStart}T12:00:00`);
+  const weekEndDate = new Date(weekStartDate);
+  weekEndDate.setDate(weekEndDate.getDate() + 6);
+  const weekEndStr = `${weekEndDate.getFullYear()}-${String(weekEndDate.getMonth() + 1).padStart(2, '0')}-${String(weekEndDate.getDate()).padStart(2, '0')}`;
+
+  // 1. Récupérer tous les utilisateurs Auth
+  const authUsersRes = await supabaseAdminRequest("/auth/v1/admin/users?per_page=100");
+  const authData = (authUsersRes.ok ? await authUsersRes.json() : {}) as { users?: Array<{ id: string; email?: string }> };
+  const authUsers = authData.users || [];
+  const emailMap = new Map<string, string>();
+  authUsers.forEach((u) => {
+    if (u.id && u.email) emailMap.set(u.id, u.email);
+  });
+
+  // 2. Récupérer tous les profils
+  const profilesRes = await supabaseAdminRequest("/rest/v1/profiles?select=*&order=full_name.asc");
+  const profiles = (profilesRes.ok ? await profilesRes.json() : []) as Array<Record<string, any>>;
+  const profileMap = new Map<string, Record<string, any>>();
+  profiles.forEach((p) => profileMap.set(p.id, p));
+
+  // 3. Récupérer tous les rapports pour cette semaine
+  const reportsRes = await supabaseAdminRequest(
+    `/rest/v1/weekly_reports?week_start=eq.${encodeURIComponent(weekStart)}&select=*`
+  );
+  const reports = (reportsRes.ok ? await reportsRes.json() : []) as Array<Record<string, any>>;
+  const reportMap = new Map<string, Record<string, any>>();
+  reports.forEach((r) => reportMap.set(r.user_id, r));
+
+  // 4. Récupérer toutes les activités de la semaine
+  const actsRes = await supabaseAdminRequest(
+    `/rest/v1/activities?activity_date=gte.${encodeURIComponent(weekStart)}&activity_date=lte.${encodeURIComponent(weekEndStr)}&select=id,user_id`
+  );
+  const activities = (actsRes.ok ? await actsRes.json() : []) as Array<{ id: string; user_id: string }>;
+  const activityCountMap = new Map<string, number>();
+  activities.forEach((a) => {
+    activityCountMap.set(a.user_id, (activityCountMap.get(a.user_id) || 0) + 1);
+  });
+
+  // 5. Synthétiser l'état de chaque membre
+  const members = profiles.map((p) => {
+    const rep = reportMap.get(p.id);
+    const actCount = activityCountMap.get(p.id) || 0;
+    const email = emailMap.get(p.id) || "";
+
+    let status: "SUBMITTED" | "DRAFT" | "NOT_STARTED" = "NOT_STARTED";
+    if (rep?.status === "SUBMITTED") {
+      status = "SUBMITTED";
+    } else if (rep?.status === "DRAFT" || actCount > 0 || rep?.difficulties || rep?.perspectives) {
+      status = "DRAFT";
+    }
+
+    return {
+      id: p.id,
+      userId: p.id,
+      fullName: p.full_name || "Collaborateur",
+      email,
+      role: p.role || "COLLABORATEUR",
+      department: p.department || "Général",
+      avatarUrl: p.avatar_url || null,
+      status,
+      activitiesCount: actCount,
+      difficulties: rep?.difficulties || "",
+      perspectives: rep?.perspectives || "",
+      submittedAt: rep?.status === "SUBMITTED" ? rep.updated_at || rep.created_at : null,
+      updatedAt: rep?.updated_at || null,
+      reportId: rep?.id || null,
+    };
+  });
+
+  const totalMembers = members.length;
+  const submittedCount = members.filter((m) => m.status === "SUBMITTED").length;
+  const draftCount = members.filter((m) => m.status === "DRAFT").length;
+  const notStartedCount = members.filter((m) => m.status === "NOT_STARTED").length;
+  const completionRate = totalMembers > 0 ? Math.round((submittedCount / totalMembers) * 100) : 0;
+
+  res.json({
+    weekStart,
+    weekEnd: weekEndStr,
+    kpis: {
+      totalMembers,
+      submittedCount,
+      draftCount,
+      notStartedCount,
+      completionRate,
+    },
+    members,
+  });
 });
 
 export default router;

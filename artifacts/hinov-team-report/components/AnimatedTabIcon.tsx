@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, StyleSheet, Text, View } from 'react-native';
 import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 export interface TabIconConfig {
@@ -16,6 +16,7 @@ interface AnimatedTabIconProps {
   tabColor: string;
   iconType?: 'feather' | 'ionicons' | 'material';
   size?: number;
+  badgeCount?: number;
 }
 
 export function AnimatedTabIcon({
@@ -24,6 +25,7 @@ export function AnimatedTabIcon({
   tabColor,
   iconType = 'feather',
   size = 22,
+  badgeCount = 0,
 }: AnimatedTabIconProps) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const translateYAnim = useRef(new Animated.Value(0)).current;
@@ -125,6 +127,15 @@ export function AnimatedTabIcon({
         {iconElement()}
       </Animated.View>
 
+      {/* Badge numérique si count > 0 */}
+      {badgeCount > 0 ? (
+        <View style={styles.notifBadge}>
+          <Text style={styles.notifBadgeText}>
+            {badgeCount > 9 ? '9+' : badgeCount}
+          </Text>
+        </View>
+      ) : null}
+
       {/* Petit indicateur sous forme de point lumineux coloré sous l'icône active */}
       <Animated.View
         style={[
@@ -164,6 +175,27 @@ const styles = StyleSheet.create({
   iconContainer: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  notifBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: '#EF4444',
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    zIndex: 10,
+  },
+  notifBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
+    lineHeight: 11,
   },
   activeDot: {
     position: 'absolute',

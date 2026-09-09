@@ -12,15 +12,16 @@ import { AnimatedTabIcon } from '@/components/AnimatedTabIcon';
 
 // Palette de couleurs distinctes et vivantes par onglet
 export const TAB_COLORS = {
-  home: '#3B82F6',       // Bleu dynamique (Accueil)
-  activities: '#10B981', // Vert émeraude (Activités)
-  report: '#8B5CF6',     // Violet moderne (Rapport)
-  users: '#F59E0B',      // Orange ambré (Équipe)
-  profile: '#EC4899',    // Rose framboise (Profil)
-  aiSettings: '#06B6D4', // Cyan technologique (IA)
+  home: '#3B82F6',        // Bleu dynamique (Accueil)
+  activities: '#10B981',  // Vert émeraude (Activités)
+  report: '#8B5CF6',      // Violet moderne (Rapport)
+  teamReports: '#6366F1', // Indigo premium (Rapports Équipe Direction)
+  users: '#F59E0B',       // Orange ambré (Équipe)
+  profile: '#EC4899',     // Rose framboise (Profil)
+  aiSettings: '#06B6D4',  // Cyan technologique (IA)
 };
 
-function ClassicTabLayout({ isAdmin }: { isAdmin: boolean }) {
+function ClassicTabLayout({ isAdmin, unreadCount }: { isAdmin: boolean; unreadCount: number }) {
   const colors = useColors();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -111,10 +112,26 @@ function ClassicTabLayout({ isAdmin }: { isAdmin: boolean }) {
         }}
       />
       <Tabs.Screen
+        name="team-reports"
+        options={{
+          title: 'Rapports Équipe',
+          href: (isAdmin ? '/team-reports' : null) as any,
+          tabBarActiveTintColor: TAB_COLORS.teamReports,
+          tabBarIcon: ({ focused }) => (
+            <AnimatedTabIcon
+              focused={focused}
+              name="clipboard"
+              tabColor={TAB_COLORS.teamReports}
+              badgeCount={unreadCount}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="users"
         options={{
           title: 'Équipe',
-          href: isAdmin ? '/users' : null,
+          href: (isAdmin ? '/users' : null) as any,
           tabBarActiveTintColor: TAB_COLORS.users,
           tabBarIcon: ({ focused }) => (
             <AnimatedTabIcon
@@ -160,6 +177,7 @@ function ClassicTabLayout({ isAdmin }: { isAdmin: boolean }) {
 export default function TabLayout() {
   const { token, isHydrated } = useAuth();
   const { profile } = useAppState();
+  const [unreadCount, setUnreadCount] = React.useState(0);
 
   const isAdmin =
     profile.role?.toUpperCase() === 'SUPERADMIN' ||
@@ -169,6 +187,34 @@ export default function TabLayout() {
     if (isHydrated && !token) router.replace('/login');
   }, [isHydrated, token]);
 
+  // Polling des notifications pour la direction
+  useEffect(() => {
+    if (!token || !isAdmin) {
+      setUnreadCount(0);
+      return;
+    }
+
+    const checkNotifs = async () => {
+      try {
+        const res = await fetch('/api/notifications', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (typeof data.unreadCount === 'number') {
+            setUnreadCount(data.unreadCount);
+          }
+        }
+      } catch {
+        // Silencieux
+      }
+    };
+
+    checkNotifs();
+    const timer = setInterval(checkNotifs, 25000);
+    return () => clearInterval(timer);
+  }, [token, isAdmin]);
+
   if (!isHydrated || !token) return null;
-  return <ClassicTabLayout isAdmin={isAdmin} />;
+  return <ClassicTabLayout isAdmin={isAdmin} unreadCount={unreadCount} />;
 }

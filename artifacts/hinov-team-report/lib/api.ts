@@ -99,6 +99,56 @@ export type ReportHistoryItem = {
   activitiesCount?: number;
 };
 
+export type AppNotification = {
+  id: string;
+  userId: string;
+  senderId: string;
+  senderName: string;
+  senderAvatar?: string | null;
+  senderDepartment?: string;
+  title: string;
+  message: string;
+  type: string;
+  data: {
+    reportId?: string;
+    userId: string;
+    weekStart: string;
+    submittedAt?: string;
+  };
+  isRead: boolean;
+  createdAt: string;
+};
+
+export type TeamMemberReportStatus = {
+  id: string;
+  userId: string;
+  fullName: string;
+  email: string;
+  role: string;
+  department: string;
+  avatarUrl?: string | null;
+  status: 'SUBMITTED' | 'DRAFT' | 'NOT_STARTED';
+  activitiesCount: number;
+  difficulties: string;
+  perspectives: string;
+  submittedAt?: string | null;
+  updatedAt?: string | null;
+  reportId?: string | null;
+};
+
+export type TeamReportsStatusResponse = {
+  weekStart: string;
+  weekEnd: string;
+  kpis: {
+    totalMembers: number;
+    submittedCount: number;
+    draftCount: number;
+    notStartedCount: number;
+    completionRate: number;
+  };
+  members: TeamMemberReportStatus[];
+};
+
 
 export async function refreshAuthSession(refreshToken: string): Promise<{ access_token: string; refresh_token: string }> {
   const res = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
