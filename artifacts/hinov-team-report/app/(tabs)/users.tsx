@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -56,6 +57,7 @@ export default function UsersManagementScreen() {
   const [collaboratorReportData, setCollaboratorReportData] = useState<AdminCollaboratorReport | null>(null);
   const [loadingReport, setLoadingReport] = useState(false);
   const [isExportingCollaboratorPdf, setIsExportingCollaboratorPdf] = useState(false);
+  const [reportModalTab, setReportModalTab] = useState<'preview' | 'summary'>('preview');
 
   // Modal states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -196,6 +198,16 @@ export default function UsersManagementScreen() {
       return matchesSearch && matchesRole;
     });
   }, [users, searchQuery, selectedRoleFilter]);
+
+  const collaboratorGrouped = useMemo(() => {
+    if (!collaboratorReportData?.activities) return new Map<string, AdminCollaboratorReport['activities']>();
+    const byDay = new Map<string, AdminCollaboratorReport['activities']>();
+    collaboratorReportData.activities.forEach((act) => {
+      const day = dateToWeekDay(act.date);
+      byDay.set(day, [...(byDay.get(day) ?? []), act]);
+    });
+    return byDay;
+  }, [collaboratorReportData]);
 
   // Handle Add User
   const handleCreateUser = async () => {
@@ -1139,17 +1151,17 @@ export default function UsersManagementScreen() {
       {/* Modal : Consultation & Téléchargement du Rapport Collaborateur (Direction) */}
       <Modal visible={isReportModalOpen} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border, maxHeight: '92%' }]}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border, maxHeight: '94%' }]}>
             <View style={styles.modalHeader}>
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Feather name="file-text" size={16} color={colors.primary} />
+                  <Feather name="file-text" size={17} color={colors.primary} />
                   <Text style={[styles.modalTitle, { color: colors.foreground }]}>
                     Rapport de {selectedReportUser?.fullName || 'Collaborateur'}
                   </Text>
                 </View>
                 <Text style={{ fontSize: 11, color: colors.mutedForeground, marginTop: 2 }}>
-                  {selectedReportUser?.department} • Semaine en cours
+                  {selectedReportUser?.department} • {selectedReportUser?.role}
                 </Text>
               </View>
               <Pressable onPress={() => setIsReportModalOpen(false)} hitSlop={10}>
@@ -1161,125 +1173,376 @@ export default function UsersManagementScreen() {
               <View style={{ padding: 40, alignItems: 'center', gap: 12 }}>
                 <ActivityIndicator color={colors.primary} size="large" />
                 <Text style={{ fontSize: 13, color: colors.mutedForeground }}>
-                  Chargement du rapport hebdomadaire...
+                  Chargement du document PDF du collaborateur...
                 </Text>
               </View>
             ) : collaboratorReportData ? (
               <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Statut du rapport */}
-                <View style={[styles.reportSummaryCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <View>
-                      <Text style={{ fontSize: 10, fontFamily: 'Inter_700Bold', color: colors.mutedForeground, letterSpacing: 1 }}>
-                        STATUT DU DOCUMENT
-                      </Text>
-                      <Text style={{ fontSize: 15, fontFamily: 'Inter_700Bold', color: colors.foreground, marginTop: 2 }}>
-                        {collaboratorReportData.report?.status === 'SUBMITTED' ? 'Validé & Transmis' : 'En cours de rédaction (Brouillon)'}
-                      </Text>
-                    </View>
-                    <View
+                {/* Sélecteur Mode : Aperçu PDF Direct vs Synthèse */}
+                <View style={[styles.modalTabBar, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <Pressable
+                    onPress={() => setReportModalTab('preview')}
+                    style={[
+                      styles.modalTabButton,
+                      reportModalTab === 'preview' && { backgroundColor: colors.blueSoft },
+                    ]}
+                  >
+                    <Feather
+                      name="eye"
+                      size={14}
+                      color={reportModalTab === 'preview' ? colors.primary : colors.mutedForeground}
+                    />
+                    <Text
                       style={[
-                        styles.statusBadgePill,
+                        styles.modalTabButtonText,
                         {
-                          backgroundColor:
-                            collaboratorReportData.report?.status === 'SUBMITTED' ? '#DEF7EC' : colors.orangeSoft,
+                          color: reportModalTab === 'preview' ? colors.primary : colors.mutedForeground,
+                          fontWeight: reportModalTab === 'preview' ? '700' : '500',
                         },
                       ]}
                     >
-                      <Feather
-                        name={collaboratorReportData.report?.status === 'SUBMITTED' ? 'check-circle' : 'clock'}
-                        size={13}
-                        color={collaboratorReportData.report?.status === 'SUBMITTED' ? '#03543F' : colors.warning}
-                      />
-                      <Text
-                        style={{
-                          fontSize: 11,
-                          fontFamily: 'Inter_700Bold',
-                          color:
-                            collaboratorReportData.report?.status === 'SUBMITTED' ? '#03543F' : colors.warning,
-                          marginLeft: 4,
-                        }}
-                      >
-                        {collaboratorReportData.report?.status === 'SUBMITTED' ? 'Soumis' : 'Brouillon'}
+                      Aperçu PDF A4 Direct
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => setReportModalTab('summary')}
+                    style={[
+                      styles.modalTabButton,
+                      reportModalTab === 'summary' && { backgroundColor: colors.blueSoft },
+                    ]}
+                  >
+                    <Feather
+                      name="list"
+                      size={14}
+                      color={reportModalTab === 'summary' ? colors.primary : colors.mutedForeground}
+                    />
+                    <Text
+                      style={[
+                        styles.modalTabButtonText,
+                        {
+                          color: reportModalTab === 'summary' ? colors.primary : colors.mutedForeground,
+                          fontWeight: reportModalTab === 'summary' ? '700' : '500',
+                        },
+                      ]}
+                    >
+                      Synthèse & Détails
+                    </Text>
+                  </Pressable>
+                </View>
+
+                {/* Bouton d'action rapide Téléchargement en haut */}
+                <Pressable
+                  testID="btn-quick-download-pdf"
+                  onPress={handleExportCollaboratorPdf}
+                  disabled={isExportingCollaboratorPdf}
+                  style={({ pressed }) => [
+                    styles.quickDownloadBtn,
+                    { backgroundColor: colors.primary, opacity: isExportingCollaboratorPdf ? 0.6 : pressed ? 0.8 : 1 },
+                  ]}
+                >
+                  {isExportingCollaboratorPdf ? (
+                    <ActivityIndicator color={colors.primaryForeground} size="small" />
+                  ) : (
+                    <>
+                      <Feather name="download" size={16} color={colors.primaryForeground} />
+                      <Text style={styles.quickDownloadBtnText}>
+                        Télécharger / Exporter le PDF officiel
+                      </Text>
+                    </>
+                  )}
+                </Pressable>
+
+                {reportModalTab === 'preview' ? (
+                  /* ========================================================================= */
+                  /* RENDU FEUILLE DE DOCUMENT A4 IDENTIQUE AU PDF EXPORTÉ                     */
+                  /* ========================================================================= */
+                  <View style={styles.paperSheetModal}>
+                    {/* 1. Bannière d'en-tête */}
+                    <View style={styles.bannerContainerRelative}>
+                      {pdfHeaderImage ? (
+                        <Image source={{ uri: pdfHeaderImage }} style={styles.paperBannerImgModal} resizeMode="cover" />
+                      ) : (
+                        <LinearGradient
+                          colors={['#1E3A8A', '#2563EB']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 0 }}
+                          style={styles.paperBannerGradientModal}
+                        >
+                          <Text style={styles.paperBannerTitleModal}>{companyName}</Text>
+                          <Text style={styles.paperBannerSubtitleModal}>RAPPORT D'ACTIVITÉS HEBDOMADAIRE OFFICIEL</Text>
+                        </LinearGradient>
+                      )}
+                    </View>
+
+                    {/* 2. Carte d'identité Collaborateur */}
+                    <View style={styles.paperIdentityCardModal}>
+                      <View style={styles.paperUserLeftModal}>
+                        {collaboratorReportData.profile.avatarUri ? (
+                          <Image source={{ uri: collaboratorReportData.profile.avatarUri }} style={styles.paperAvatarModal} />
+                        ) : (
+                          <View style={[styles.paperAvatarFallbackModal, { backgroundColor: primaryColor }]}>
+                            <Text style={styles.paperAvatarInitialsModal}>
+                              {(collaboratorReportData.profile.fullName || 'CO').slice(0, 2).toUpperCase()}
+                            </Text>
+                          </View>
+                        )}
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.paperUserNameModal}>{collaboratorReportData.profile.fullName}</Text>
+                          <View style={styles.paperRoleBadgeRowModal}>
+                            <View style={[styles.paperRoleBadgeModal, { backgroundColor: primaryColor }]}>
+                              <Text style={styles.paperRoleTextModal}>{collaboratorReportData.profile.role}</Text>
+                            </View>
+                            <Text style={styles.paperDeptTextModal}>{collaboratorReportData.profile.department}</Text>
+                          </View>
+                          {collaboratorReportData.profile.email ? (
+                            <Text style={styles.paperEmailTextModal}>{collaboratorReportData.profile.email}</Text>
+                          ) : null}
+                        </View>
+                      </View>
+                      <View style={styles.paperMetaRightModal}>
+                        <View style={styles.paperDocBadgeModal}>
+                          <Text style={styles.paperDocBadgeTextModal}>RAPPORT HEBDOMADAIRE</Text>
+                        </View>
+                        <Text style={styles.paperPeriodTextModal}>
+                          {collaboratorReportData.report?.status === 'SUBMITTED' ? '✔ Document validé & transmis' : '⏳ En rédaction (Brouillon)'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* 3. Section 1 : Activités */}
+                    <View style={styles.paperSectionHeadingModal}>
+                      <View style={[styles.paperSectionIconModal, { backgroundColor: primaryColor }]}>
+                        <Text style={styles.paperSectionIconNumberModal}>1</Text>
+                      </View>
+                      <Text style={[styles.paperSectionTitleModal, { color: primaryColor }]}>
+                        Activités & Réalisations de la Semaine
+                      </Text>
+                      <View style={styles.paperSectionCounterModal}>
+                        <Text style={styles.paperSectionCounterTextModal}>
+                          {collaboratorReportData.activities.length} activité{collaboratorReportData.activities.length > 1 ? 's' : ''}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {collaboratorGrouped.size === 0 ? (
+                      <View style={styles.paperEmptyDayBoxModal}>
+                        <Text style={styles.paperEmptyDayTextModal}>
+                          Aucune activité enregistrée par le collaborateur pour cette période.
+                        </Text>
+                      </View>
+                    ) : (
+                      WEEK_DAYS.filter((day) => collaboratorGrouped.has(day)).map((day) => {
+                        const dayActs = collaboratorGrouped.get(day) ?? [];
+                        return (
+                          <View key={day} style={styles.paperDayBlockModal}>
+                            <View style={styles.paperDayHeaderModal}>
+                              <Text style={styles.paperDayTitleModal}>{day}</Text>
+                              <View style={styles.paperDayBadgeModal}>
+                                <Text style={styles.paperDayBadgeTextModal}>
+                                  {dayActs.length} activité{dayActs.length > 1 ? 's' : ''}
+                                </Text>
+                              </View>
+                            </View>
+
+                            {dayActs.map((act) => (
+                              <View key={act.id} style={styles.paperActivityEntryModal}>
+                                <View style={styles.paperActivityTitleRowModal}>
+                                  <View style={styles.paperActivityBulletModal} />
+                                  <Text style={styles.paperActivityTitleModal}>{act.title}</Text>
+                                  {act.category ? (
+                                    <View style={styles.paperCategoryTagModal}>
+                                      <Text style={styles.paperCategoryTagTextModal}>{act.category}</Text>
+                                    </View>
+                                  ) : null}
+                                </View>
+                                {act.description ? (
+                                  <Text style={styles.paperActivityDescModal}>{act.description}</Text>
+                                ) : null}
+                              </View>
+                            ))}
+                          </View>
+                        );
+                      })
+                    )}
+
+                    {/* 4. Section 2 : Difficultés */}
+                    <View style={[styles.paperSectionHeadingModal, { marginTop: 16 }]}>
+                      <View style={[styles.paperSectionIconModal, { backgroundColor: '#D97706' }]}>
+                        <Text style={styles.paperSectionIconNumberModal}>2</Text>
+                      </View>
+                      <Text style={[styles.paperSectionTitleModal, { color: '#D97706' }]}>
+                        Bilan & Difficultés Rencontrées
+                      </Text>
+                    </View>
+                    <View style={[styles.paperCalloutBoxModal, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
+                      <Text style={[styles.paperCalloutTitleModal, { color: '#92400E' }]}>
+                        ⚠️ Points de blocage & vigilances opérationnelles
+                      </Text>
+                      <Text style={[styles.paperCalloutBodyModal, { color: '#78350F' }]}>
+                        {collaboratorReportData.report?.difficulties?.trim() || 'Aucun point bloquant majeur signalé pour cette période.'}
+                      </Text>
+                    </View>
+
+                    {/* 5. Section 3 : Perspectives */}
+                    <View style={[styles.paperSectionHeadingModal, { marginTop: 16 }]}>
+                      <View style={[styles.paperSectionIconModal, { backgroundColor: '#059669' }]}>
+                        <Text style={styles.paperSectionIconNumberModal}>3</Text>
+                      </View>
+                      <Text style={[styles.paperSectionTitleModal, { color: '#059669' }]}>
+                        Perspectives & Priorités de la Semaine Suivante
+                      </Text>
+                    </View>
+                    <View style={[styles.paperCalloutBoxModal, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
+                      <Text style={[styles.paperCalloutTitleModal, { color: '#065F46' }]}>
+                        🎯 Objectifs stratégiques & livrables attendus
+                      </Text>
+                      <Text style={[styles.paperCalloutBodyModal, { color: '#064E3B' }]}>
+                        {collaboratorReportData.report?.perspectives?.trim() || 'Poursuite des tâches en cours et alignement opérationnel.'}
+                      </Text>
+                    </View>
+
+                    {/* 6. Section 4 : Bloc de Visa et Signature */}
+                    <View style={styles.paperSignaturesRowModal}>
+                      <View style={styles.paperSignBoxModal}>
+                        <Text style={styles.paperSignLabelModal}>Collaborateur</Text>
+                        <Text style={styles.paperSignNameModal}>{collaboratorReportData.profile.fullName}</Text>
+                        <Text style={styles.paperSignStatusDoneModal}>✔ Document validé et transmis</Text>
+                      </View>
+                      <View style={styles.paperSignBoxModal}>
+                        <Text style={styles.paperSignLabelModal}>Visa Hiérarchique / Direction</Text>
+                        <Text style={styles.paperSignPendingModal}>Direction des Opérations HINOV</Text>
+                        <View style={styles.paperSignLineModal} />
+                      </View>
+                    </View>
+
+                    {/* 7. Pied de page */}
+                    <View style={styles.paperFooterModal}>
+                      <Text style={styles.paperFooterTextModal}>{pdfFooterText}</Text>
+                      <Text style={styles.paperFooterDateModal}>Aperçu Direction</Text>
+                    </View>
+                  </View>
+                ) : (
+                  /* ========================================================================= */
+                  /* SYNTHÈSE DES DONNÉES DU COLLABORATEUR                                     */
+                  /* ========================================================================= */
+                  <View>
+                    {/* Statut du rapport */}
+                    <View style={[styles.reportSummaryCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <View>
+                          <Text style={{ fontSize: 10, fontFamily: 'Inter_700Bold', color: colors.mutedForeground, letterSpacing: 1 }}>
+                            STATUT DU DOCUMENT
+                          </Text>
+                          <Text style={{ fontSize: 15, fontFamily: 'Inter_700Bold', color: colors.foreground, marginTop: 2 }}>
+                            {collaboratorReportData.report?.status === 'SUBMITTED' ? 'Validé & Transmis' : 'En cours de rédaction (Brouillon)'}
+                          </Text>
+                        </View>
+                        <View
+                          style={[
+                            styles.statusBadgePill,
+                            {
+                              backgroundColor:
+                                collaboratorReportData.report?.status === 'SUBMITTED' ? '#DEF7EC' : colors.orangeSoft,
+                            },
+                          ]}
+                        >
+                          <Feather
+                            name={collaboratorReportData.report?.status === 'SUBMITTED' ? 'check-circle' : 'clock'}
+                            size={13}
+                            color={collaboratorReportData.report?.status === 'SUBMITTED' ? '#03543F' : colors.warning}
+                          />
+                          <Text
+                            style={{
+                              fontSize: 11,
+                              fontFamily: 'Inter_700Bold',
+                              color:
+                                collaboratorReportData.report?.status === 'SUBMITTED' ? '#03543F' : colors.warning,
+                              marginLeft: 4,
+                            }}
+                          >
+                            {collaboratorReportData.report?.status === 'SUBMITTED' ? 'Soumis' : 'Brouillon'}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={{ fontSize: 12, color: colors.mutedForeground, marginTop: 6 }}>
+                        Total : {collaboratorReportData.activities.length} activité{collaboratorReportData.activities.length > 1 ? 's' : ''} enregistrée{collaboratorReportData.activities.length > 1 ? 's' : ''} cette semaine.
+                      </Text>
+                    </View>
+
+                    {/* Activités */}
+                    <Text style={[styles.inputLabel, { color: colors.foreground, fontSize: 13, marginTop: 14 }]}>
+                      Activités de la semaine ({collaboratorReportData.activities.length})
+                    </Text>
+                    {collaboratorReportData.activities.length === 0 ? (
+                      <View style={[styles.emptyBox, { borderColor: colors.border }]}>
+                        <Text style={{ fontSize: 12, color: colors.mutedForeground, textAlign: 'center' }}>
+                          Aucune activité renseignée pour cette semaine.
+                        </Text>
+                      </View>
+                    ) : (
+                      collaboratorReportData.activities.map((act) => (
+                        <View key={act.id} style={[styles.reportActivityItem, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <Text style={{ flex: 1, fontSize: 13, fontFamily: 'Inter_700Bold', color: colors.foreground }}>
+                              {act.title}
+                            </Text>
+                            <Text style={{ fontSize: 11, color: colors.mutedForeground, marginLeft: 8 }}>
+                              {act.date}
+                            </Text>
+                          </View>
+                          {act.description ? (
+                            <Text style={{ fontSize: 12, color: colors.mutedForeground, marginTop: 4 }}>
+                              {act.description}
+                            </Text>
+                          ) : null}
+                          <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+                            <View style={[styles.microBadge, { backgroundColor: colors.blueSoft }]}>
+                              <Text style={{ fontSize: 10, fontFamily: 'Inter_600SemiBold', color: colors.primary }}>
+                                {act.category || 'Général'}
+                              </Text>
+                            </View>
+                            <View style={[styles.microBadge, { backgroundColor: act.status === 'Terminée' ? '#DEF7EC' : colors.orangeSoft }]}>
+                              <Text
+                                style={{
+                                  fontSize: 10,
+                                  fontFamily: 'Inter_600SemiBold',
+                                  color: act.status === 'Terminée' ? '#03543F' : colors.warning,
+                                }}
+                              >
+                                {act.status || 'En cours'}
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+                      ))
+                    )}
+
+                    {/* Difficultés */}
+                    <Text style={[styles.inputLabel, { color: colors.foreground, fontSize: 13, marginTop: 14 }]}>
+                      Difficultés & Points de blocage
+                    </Text>
+                    <View style={[styles.calloutCard, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
+                      <Text style={{ fontSize: 12, color: '#78350F', lineHeight: 18 }}>
+                        {collaboratorReportData.report?.difficulties?.trim() || 'Aucun point bloquant signalé.'}
+                      </Text>
+                    </View>
+
+                    {/* Perspectives */}
+                    <Text style={[styles.inputLabel, { color: colors.foreground, fontSize: 13, marginTop: 14 }]}>
+                      Perspectives & Priorités
+                    </Text>
+                    <View style={[styles.calloutCard, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
+                      <Text style={{ fontSize: 12, color: '#064E3B', lineHeight: 18 }}>
+                        {collaboratorReportData.report?.perspectives?.trim() || 'Poursuite des activités en cours.'}
                       </Text>
                     </View>
                   </View>
-                  <Text style={{ fontSize: 12, color: colors.mutedForeground, marginTop: 6 }}>
-                    Total : {collaboratorReportData.activities.length} activité{collaboratorReportData.activities.length > 1 ? 's' : ''} enregistrée{collaboratorReportData.activities.length > 1 ? 's' : ''} cette semaine.
-                  </Text>
-                </View>
-
-                {/* Activités */}
-                <Text style={[styles.inputLabel, { color: colors.foreground, fontSize: 13, marginTop: 14 }]}>
-                  Activités de la semaine ({collaboratorReportData.activities.length})
-                </Text>
-                {collaboratorReportData.activities.length === 0 ? (
-                  <View style={[styles.emptyBox, { borderColor: colors.border }]}>
-                    <Text style={{ fontSize: 12, color: colors.mutedForeground, textAlign: 'center' }}>
-                      Aucune activité renseignée pour cette semaine.
-                    </Text>
-                  </View>
-                ) : (
-                  collaboratorReportData.activities.map((act) => (
-                    <View key={act.id} style={[styles.reportActivityItem, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <Text style={{ flex: 1, fontSize: 13, fontFamily: 'Inter_700Bold', color: colors.foreground }}>
-                          {act.title}
-                        </Text>
-                        <Text style={{ fontSize: 11, color: colors.mutedForeground, marginLeft: 8 }}>
-                          {act.date}
-                        </Text>
-                      </View>
-                      {act.description ? (
-                        <Text style={{ fontSize: 12, color: colors.mutedForeground, marginTop: 4 }}>
-                          {act.description}
-                        </Text>
-                      ) : null}
-                      <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
-                        <View style={[styles.microBadge, { backgroundColor: colors.blueSoft }]}>
-                          <Text style={{ fontSize: 10, fontFamily: 'Inter_600SemiBold', color: colors.primary }}>
-                            {act.category || 'Général'}
-                          </Text>
-                        </View>
-                        <View style={[styles.microBadge, { backgroundColor: act.status === 'Terminée' ? '#DEF7EC' : colors.orangeSoft }]}>
-                          <Text
-                            style={{
-                              fontSize: 10,
-                              fontFamily: 'Inter_600SemiBold',
-                              color: act.status === 'Terminée' ? '#03543F' : colors.warning,
-                            }}
-                          >
-                            {act.status || 'En cours'}
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
-                  ))
                 )}
 
-                {/* Difficultés */}
-                <Text style={[styles.inputLabel, { color: colors.foreground, fontSize: 13, marginTop: 14 }]}>
-                  Difficultés & Points de blocage
-                </Text>
-                <View style={[styles.calloutCard, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
-                  <Text style={{ fontSize: 12, color: '#78350F', lineHeight: 18 }}>
-                    {collaboratorReportData.report?.difficulties?.trim() || 'Aucun point bloquant signalé.'}
-                  </Text>
-                </View>
-
-                {/* Perspectives */}
-                <Text style={[styles.inputLabel, { color: colors.foreground, fontSize: 13, marginTop: 14 }]}>
-                  Perspectives & Priorités
-                </Text>
-                <View style={[styles.calloutCard, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
-                  <Text style={{ fontSize: 12, color: '#064E3B', lineHeight: 18 }}>
-                    {collaboratorReportData.report?.perspectives?.trim() || 'Poursuite des activités en cours.'}
-                  </Text>
-                </View>
-
-                {/* Bouton Téléchargement / Exportation PDF */}
+                {/* Bouton Téléchargement PDF en bas */}
                 <Pressable
-                  testID="btn-download-collaborator-pdf"
+                  testID="btn-download-collaborator-pdf-bottom"
                   onPress={handleExportCollaboratorPdf}
                   disabled={isExportingCollaboratorPdf}
                   style={({ pressed }) => [
@@ -1667,6 +1930,368 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     marginTop: 6,
+  },
+  modalTabBar: {
+    flexDirection: 'row',
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 4,
+    marginBottom: 12,
+    gap: 6,
+  },
+  modalTabButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  modalTabButtonText: {
+    fontSize: 12,
+  },
+  quickDownloadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    borderRadius: 12,
+    marginBottom: 14,
+  },
+  quickDownloadBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontFamily: 'Inter_700Bold',
+  },
+  bannerContainerRelative: {
+    width: '100%',
+    height: 100,
+    borderRadius: 10,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  paperSheetModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  paperBannerImgModal: {
+    width: '100%',
+    height: '100%',
+  },
+  paperBannerGradientModal: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 12,
+  },
+  paperBannerTitleModal: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontFamily: 'Inter_700Bold',
+    letterSpacing: 1.2,
+  },
+  paperBannerSubtitleModal: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 9,
+    fontFamily: 'Inter_600SemiBold',
+    marginTop: 4,
+    letterSpacing: 0.5,
+  },
+  paperIdentityCardModal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 14,
+  },
+  paperUserLeftModal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  paperAvatarModal: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
+  paperAvatarFallbackModal: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  paperAvatarInitialsModal: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontFamily: 'Inter_700Bold',
+  },
+  paperUserNameModal: {
+    fontSize: 14,
+    fontFamily: 'Inter_700Bold',
+    color: '#0F172A',
+  },
+  paperRoleBadgeRowModal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  paperRoleBadgeModal: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  paperRoleTextModal: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontFamily: 'Inter_700Bold',
+  },
+  paperDeptTextModal: {
+    fontSize: 11,
+    color: '#64748B',
+    fontFamily: 'Inter_500Medium',
+  },
+  paperEmailTextModal: {
+    fontSize: 10,
+    color: '#94A3B8',
+    fontFamily: 'Inter_400Regular',
+    marginTop: 1,
+  },
+  paperMetaRightModal: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  paperDocBadgeModal: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  paperDocBadgeTextModal: {
+    color: '#1E40AF',
+    fontSize: 9,
+    fontFamily: 'Inter_700Bold',
+  },
+  paperPeriodTextModal: {
+    fontSize: 10,
+    color: '#64748B',
+    fontFamily: 'Inter_500Medium',
+  },
+  paperSectionHeadingModal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  paperSectionIconModal: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  paperSectionIconNumberModal: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontFamily: 'Inter_700Bold',
+  },
+  paperSectionTitleModal: {
+    fontSize: 13,
+    fontFamily: 'Inter_700Bold',
+    flex: 1,
+  },
+  paperSectionCounterModal: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  paperSectionCounterTextModal: {
+    fontSize: 10,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#475569',
+  },
+  paperEmptyDayBoxModal: {
+    padding: 14,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+  },
+  paperEmptyDayTextModal: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontStyle: 'italic',
+  },
+  paperDayBlockModal: {
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    borderRadius: 8,
+    padding: 8,
+    backgroundColor: '#FAFAFA',
+  },
+  paperDayHeaderModal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  paperDayTitleModal: {
+    fontSize: 12,
+    fontFamily: 'Inter_700Bold',
+    color: '#334155',
+  },
+  paperDayBadgeModal: {
+    backgroundColor: '#E2E8F0',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  paperDayBadgeTextModal: {
+    fontSize: 9,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#475569',
+  },
+  paperActivityEntryModal: {
+    marginBottom: 6,
+    paddingLeft: 4,
+  },
+  paperActivityTitleRowModal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  paperActivityBulletModal: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#3B82F6',
+  },
+  paperActivityTitleModal: {
+    fontSize: 11,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#1E293B',
+    flex: 1,
+  },
+  paperCategoryTagModal: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  paperCategoryTagTextModal: {
+    fontSize: 8,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#2563EB',
+  },
+  paperActivityDescModal: {
+    fontSize: 10,
+    color: '#64748B',
+    marginTop: 2,
+    paddingLeft: 11,
+    lineHeight: 14,
+  },
+  paperCalloutBoxModal: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 8,
+  },
+  paperCalloutTitleModal: {
+    fontSize: 11,
+    fontFamily: 'Inter_700Bold',
+    marginBottom: 4,
+  },
+  paperCalloutBodyModal: {
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  paperSignaturesRowModal: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  paperSignBoxModal: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 8,
+    padding: 8,
+    backgroundColor: '#F8FAFC',
+  },
+  paperSignLabelModal: {
+    fontSize: 9,
+    fontFamily: 'Inter_700Bold',
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  paperSignNameModal: {
+    fontSize: 11,
+    fontFamily: 'Inter_700Bold',
+    color: '#0F172A',
+    marginTop: 4,
+  },
+  paperSignStatusDoneModal: {
+    fontSize: 9,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#059669',
+    marginTop: 4,
+  },
+  paperSignPendingModal: {
+    fontSize: 10,
+    fontFamily: 'Inter_500Medium',
+    color: '#64748B',
+    marginTop: 4,
+  },
+  paperSignLineModal: {
+    height: 1,
+    backgroundColor: '#CBD5E1',
+    marginTop: 16,
+    marginBottom: 4,
+  },
+  paperFooterModal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 14,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  paperFooterTextModal: {
+    fontSize: 9,
+    color: '#94A3B8',
+    fontFamily: 'Inter_400Regular',
+  },
+  paperFooterDateModal: {
+    fontSize: 9,
+    color: '#94A3B8',
+    fontFamily: 'Inter_500Medium',
   },
 });
 
