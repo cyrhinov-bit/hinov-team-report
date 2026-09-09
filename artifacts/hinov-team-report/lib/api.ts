@@ -24,11 +24,15 @@ const getApiOrigin = () => {
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL.replace(/\/+$/, '');
   }
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin;
+  }
   if (Platform.OS === 'android') {
     return 'http://10.0.2.2:5000';
   }
   return 'http://localhost:5000';
 };
+
 
 const apiOrigin = getApiOrigin();
 
