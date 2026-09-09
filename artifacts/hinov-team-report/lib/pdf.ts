@@ -72,7 +72,7 @@ export function generateReportHtml(data: ReportPdfData): string {
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=2.0, user-scalable=yes">
   <title>Rapport Hebdomadaire - ${profile.fullName}</title>
   <style>
     @page {
@@ -90,6 +90,18 @@ export function generateReportHtml(data: ReportPdfData): string {
       background-color: #FFFFFF;
       font-size: 13px;
       line-height: 1.5;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+
+    .pdf-document-wrapper {
+      width: 100%;
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 12px;
+      background: #FFFFFF;
     }
 
     /* BANNIÈRE D'EN-TÊTE PLEINE LARGEUR */
@@ -103,30 +115,33 @@ export function generateReportHtml(data: ReportPdfData): string {
     }
     .header-banner-img {
       width: 100%;
-      height: 125px;
+      height: 120px;
+      max-height: 140px;
       object-fit: cover;
       display: block;
     }
     .header-banner-placeholder {
       width: 100%;
-      height: 90px;
+      min-height: 85px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 24px;
+      padding: 16px 20px;
       color: #FFFFFF;
     }
     .brand-title {
-      font-size: 22px;
+      font-size: 20px;
       font-weight: 800;
-      letter-spacing: 1.5px;
+      letter-spacing: 1.2px;
       text-transform: uppercase;
+      line-height: 1.2;
     }
     .brand-subtitle {
-      font-size: 11px;
+      font-size: 10px;
       opacity: 0.85;
-      font-weight: 500;
+      font-weight: 600;
       letter-spacing: 0.8px;
+      margin-top: 4px;
     }
 
     /* CARTE D'IDENTITÉ DU COLLABORATEUR */
@@ -137,17 +152,21 @@ export function generateReportHtml(data: ReportPdfData): string {
       background: #F8FAFC;
       border: 1px solid #E2E8F0;
       border-radius: 12px;
-      padding: 14px 20px;
-      margin-bottom: 22px;
+      padding: 12px 18px;
+      margin-bottom: 20px;
+      gap: 14px;
+      flex-wrap: wrap;
     }
     .user-left {
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 14px;
+      flex: 1;
+      min-width: 220px;
     }
     .avatar-wrapper {
-      width: 58px;
-      height: 58px;
+      width: 52px;
+      height: 52px;
       border-radius: 50%;
       border: 3px solid #FFFFFF;
       box-shadow: 0 2px 8px rgba(0,0,0,0.12);
@@ -164,22 +183,28 @@ export function generateReportHtml(data: ReportPdfData): string {
       object-fit: cover;
     }
     .avatar-initials {
-      font-size: 20px;
+      font-size: 18px;
       font-weight: 700;
       color: ${primaryColor};
     }
+    .user-details {
+      flex: 1;
+      min-width: 0;
+    }
     .user-details h1 {
-      font-size: 17px;
+      font-size: 16px;
       font-weight: 700;
       color: #0F172A;
       margin-bottom: 2px;
+      word-break: break-word;
     }
     .user-meta {
-      font-size: 12px;
+      font-size: 11.5px;
       color: #64748B;
       display: flex;
-      gap: 12px;
+      gap: 8px;
       flex-wrap: wrap;
+      align-items: center;
     }
     .meta-tag {
       font-weight: 600;
@@ -187,22 +212,23 @@ export function generateReportHtml(data: ReportPdfData): string {
     }
     .report-meta-right {
       text-align: right;
+      flex-shrink: 0;
     }
     .doc-type-badge {
       display: inline-block;
       background: #EFF6FF;
       color: ${secondaryColor};
       border: 1px solid #BFDBFE;
-      padding: 4px 10px;
-      border-radius: 20px;
-      font-size: 10px;
+      padding: 3px 9px;
+      border-radius: 16px;
+      font-size: 9.5px;
       font-weight: 700;
-      letter-spacing: 0.8px;
+      letter-spacing: 0.6px;
       text-transform: uppercase;
-      margin-bottom: 4px;
+      margin-bottom: 3px;
     }
     .period-text {
-      font-size: 12px;
+      font-size: 11.5px;
       font-weight: 600;
       color: #334155;
     }
@@ -211,16 +237,17 @@ export function generateReportHtml(data: ReportPdfData): string {
     .section-heading {
       display: flex;
       align-items: center;
-      gap: 10px;
-      font-size: 15px;
+      gap: 9px;
+      font-size: 14px;
       font-weight: 800;
       text-transform: uppercase;
-      letter-spacing: 0.8px;
+      letter-spacing: 0.6px;
       color: ${primaryColor};
-      margin-top: 20px;
-      margin-bottom: 12px;
-      padding-bottom: 5px;
+      margin-top: 18px;
+      margin-bottom: 10px;
+      padding-bottom: 4px;
       border-bottom: 2px solid #E2E8F0;
+      flex-wrap: wrap;
     }
     .section-heading-icon {
       display: inline-flex;
@@ -233,10 +260,11 @@ export function generateReportHtml(data: ReportPdfData): string {
       color: #FFFFFF;
       font-size: 11px;
       font-weight: 900;
+      flex-shrink: 0;
     }
     .section-counter {
       margin-left: auto;
-      font-size: 11px;
+      font-size: 10.5px;
       font-weight: 600;
       color: #64748B;
       text-transform: none;
@@ -245,13 +273,13 @@ export function generateReportHtml(data: ReportPdfData): string {
       border-radius: 12px;
     }
 
-    /* ACTIVITÉS - FORMAT RÉDIGÉ ÉDITORIAL (SANS TABLEAU) */
+    /* ACTIVITÉS - FORMAT RÉDIGÉ ÉDITORIAL */
     .day-block {
-      margin-bottom: 14px;
+      margin-bottom: 12px;
       background: #FFFFFF;
       border: 1px solid #E2E8F0;
-      border-radius: 10px;
-      padding: 12px 16px;
+      border-radius: 9px;
+      padding: 10px 14px;
       page-break-inside: avoid;
     }
     .day-header {
@@ -259,27 +287,29 @@ export function generateReportHtml(data: ReportPdfData): string {
       align-items: center;
       justify-content: space-between;
       margin-bottom: 8px;
-      padding-bottom: 6px;
+      padding-bottom: 5px;
       border-bottom: 1px dashed #E2E8F0;
+      flex-wrap: wrap;
+      gap: 6px;
     }
     .day-title {
-      font-size: 13px;
+      font-size: 12.5px;
       font-weight: 700;
       color: #1E293B;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
     .day-badge {
-      font-size: 10px;
+      font-size: 9.5px;
       font-weight: 600;
-      padding: 2px 7px;
-      border-radius: 10px;
+      padding: 2px 6px;
+      border-radius: 8px;
       background: #F1F5F9;
       color: #475569;
     }
     .activity-entry {
-      margin-bottom: 10px;
-      padding-left: 12px;
+      margin-bottom: 8px;
+      padding-left: 10px;
       border-left: 3px solid ${secondaryColor};
     }
     .activity-entry:last-child {
@@ -289,26 +319,31 @@ export function generateReportHtml(data: ReportPdfData): string {
       display: flex;
       align-items: baseline;
       justify-content: space-between;
-      margin-bottom: 3px;
+      margin-bottom: 2px;
+      flex-wrap: wrap;
+      gap: 6px;
     }
     .activity-title {
-      font-size: 13px;
+      font-size: 12.5px;
       font-weight: 700;
       color: #0F172A;
+      word-break: break-word;
     }
     .activity-category-tag {
-      font-size: 9px;
+      font-size: 8.5px;
       font-weight: 700;
       text-transform: uppercase;
       background: #EEF2FF;
       color: ${secondaryColor};
-      padding: 2px 6px;
+      padding: 1px 5px;
       border-radius: 4px;
+      flex-shrink: 0;
     }
     .activity-desc {
-      font-size: 12px;
+      font-size: 11.5px;
       color: #475569;
-      line-height: 1.5;
+      line-height: 1.45;
+      word-break: break-word;
     }
     .empty-day-note {
       font-size: 11px;
@@ -319,9 +354,9 @@ export function generateReportHtml(data: ReportPdfData): string {
 
     /* ENCADRÉS BILAN & PERSPECTIVES */
     .callout-box {
-      border-radius: 10px;
-      padding: 14px 18px;
-      margin-bottom: 16px;
+      border-radius: 9px;
+      padding: 12px 15px;
+      margin-bottom: 14px;
       page-break-inside: avoid;
     }
     .callout-warning {
@@ -341,99 +376,146 @@ export function generateReportHtml(data: ReportPdfData): string {
       color: #065F46;
     }
     .callout-title {
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 6px;
+      letter-spacing: 0.4px;
+      margin-bottom: 5px;
       display: flex;
       align-items: center;
       gap: 6px;
     }
     .callout-body {
-      font-size: 12.5px;
+      font-size: 12px;
       color: #334155;
-      line-height: 1.6;
+      line-height: 1.55;
       white-space: pre-line;
+      word-break: break-word;
     }
 
     /* ZONE DE VALIDATION & SIGNATURE */
     .signatures-container {
       display: flex;
       justify-content: space-between;
-      margin-top: 26px;
-      padding-top: 14px;
+      margin-top: 22px;
+      padding-top: 12px;
       border-top: 1px solid #E2E8F0;
       page-break-inside: avoid;
+      gap: 14px;
     }
     .sign-box {
-      width: 46%;
+      flex: 1;
       background: #F8FAFC;
       border: 1px dashed #CBD5E1;
       border-radius: 8px;
-      padding: 12px 16px;
+      padding: 10px 14px;
+      min-width: 0;
     }
     .sign-label {
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 700;
       color: #475569;
       text-transform: uppercase;
       margin-bottom: 4px;
     }
     .sign-status {
-      font-size: 12px;
+      font-size: 11.5px;
       color: #059669;
       font-weight: 600;
-      margin-top: 18px;
+      margin-top: 14px;
     }
 
     /* PIED DE PAGE */
     .pdf-footer {
-      margin-top: 24px;
-      padding-top: 10px;
+      margin-top: 20px;
+      padding-top: 8px;
       border-top: 1px solid #E2E8F0;
       display: flex;
       justify-content: space-between;
-      font-size: 10px;
+      font-size: 9.5px;
       color: #94A3B8;
+      flex-wrap: wrap;
+      gap: 6px;
     }
 
-    /* RESPONSIVE MEDIA QUERIES (WEB / MOBILE) */
-    @media (max-width: 680px) {
+    /* RESPONSIVE MEDIA QUERIES (MOBILE & TABLETTE) */
+    @media (max-width: 640px) {
       body {
-        padding: 8px;
         font-size: 12px;
+      }
+      .pdf-document-wrapper {
+        padding: 6px;
+      }
+      .header-banner-img {
+        height: 80px;
+      }
+      .header-banner-placeholder {
+        padding: 12px 14px;
+        min-height: 65px;
+      }
+      .brand-title {
+        font-size: 16px;
+      }
+      .brand-subtitle {
+        font-size: 9px;
       }
       .user-identity-card {
         flex-direction: column;
         align-items: flex-start;
-        gap: 12px;
-        padding: 12px;
+        gap: 10px;
+        padding: 10px 12px;
+      }
+      .user-left {
+        width: 100%;
+        min-width: 0;
+        gap: 10px;
+      }
+      .avatar-wrapper {
+        width: 44px;
+        height: 44px;
+      }
+      .user-details h1 {
+        font-size: 14.5px;
       }
       .report-meta-right {
         text-align: left;
         width: 100%;
         padding-top: 8px;
         border-top: 1px solid #E2E8F0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
       }
       .signatures-container {
         flex-direction: column;
-        gap: 12px;
+        gap: 10px;
       }
       .sign-box {
         width: 100%;
       }
-      .activity-title-row {
-        flex-wrap: wrap;
-      }
       .pdf-footer {
         flex-direction: column;
-        gap: 6px;
+        gap: 4px;
+      }
+    }
+
+    @media print {
+      body {
+        padding: 0;
+        background: #FFFFFF;
+      }
+      .pdf-document-wrapper {
+        max-width: 100%;
+        padding: 0;
+      }
+      .day-block, .callout-box, .signatures-container {
+        page-break-inside: avoid;
       }
     }
   </style>
 </head>
 <body>
+<div class="pdf-document-wrapper">
 
   <!-- 1. BANNIÈRE D'EN-TÊTE PLEINE LARGEUR -->
   <div class="header-banner-container">
@@ -563,6 +645,7 @@ export function generateReportHtml(data: ReportPdfData): string {
     <span>Généré le ${nowFormatted}</span>
   </div>
 
+</div>
 </body>
 </html>
 `;

@@ -15,6 +15,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppState } from '@/context/AppStateContext';
@@ -43,6 +44,11 @@ const departments = [
 export default function UsersManagementScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isSmall = width < 380;
+  const isCompact = width < 540;
+  const isTabletOrDesktop = width >= 768;
+
   const { profile } = useAppState();
   const { token } = useAuth();
 
@@ -1231,12 +1237,25 @@ export default function UsersManagementScreen() {
       {/* Modal : Consultation & Téléchargement du Rapport Collaborateur (Direction) */}
       <Modal visible={isReportModalOpen} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border, maxHeight: '94%' }]}>
+          <View
+            style={[
+              styles.modalCard,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                maxHeight: '94%',
+                padding: isSmall ? 10 : isCompact ? 14 : 20,
+                width: isTabletOrDesktop ? '85%' : '100%',
+                maxWidth: 820,
+                alignSelf: 'center',
+              },
+            ]}
+          >
             <View style={styles.modalHeader}>
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Feather name="file-text" size={17} color={colors.primary} />
-                  <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+                  <Text style={[styles.modalTitle, { color: colors.foreground, fontSize: isSmall ? 15 : 18 }]}>
                     Rapport de {selectedReportUser?.fullName || 'Collaborateur'}
                   </Text>
                 </View>
@@ -1259,7 +1278,17 @@ export default function UsersManagementScreen() {
             ) : collaboratorReportData ? (
               <ScrollView showsVerticalScrollIndicator={false}>
                 {/* Sélecteur Mode : Aperçu PDF Direct vs Synthèse vs Historique */}
-                <View style={[styles.modalTabBar, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <View
+                  style={[
+                    styles.modalTabBar,
+                    {
+                      backgroundColor: colors.background,
+                      borderColor: colors.border,
+                      padding: isSmall ? 3 : 4,
+                      gap: isSmall ? 4 : 6,
+                    },
+                  ]}
+                >
                   <Pressable
                     onPress={() => setReportModalTab('preview')}
                     style={[
@@ -1278,6 +1307,7 @@ export default function UsersManagementScreen() {
                         {
                           color: reportModalTab === 'preview' ? colors.primary : colors.mutedForeground,
                           fontWeight: reportModalTab === 'preview' ? '700' : '500',
+                          fontSize: isSmall ? 10.5 : 12,
                         },
                       ]}
                     >
@@ -1303,6 +1333,7 @@ export default function UsersManagementScreen() {
                         {
                           color: reportModalTab === 'summary' ? colors.primary : colors.mutedForeground,
                           fontWeight: reportModalTab === 'summary' ? '700' : '500',
+                          fontSize: isSmall ? 10.5 : 12,
                         },
                       ]}
                     >
@@ -1328,6 +1359,7 @@ export default function UsersManagementScreen() {
                         {
                           color: reportModalTab === 'history' ? colors.primary : colors.mutedForeground,
                           fontWeight: reportModalTab === 'history' ? '700' : '500',
+                          fontSize: isSmall ? 10.5 : 12,
                         },
                       ]}
                     >
@@ -1362,29 +1394,41 @@ export default function UsersManagementScreen() {
 
                 {reportModalTab === 'preview' ? (
                   /* ========================================================================= */
-                  /* RENDU FEUILLE DE DOCUMENT A4 IDENTIQUE AU PDF EXPORTÉ                     */
+                  /* RENDU FEUILLE DE DOCUMENT A4 IDENTIQUE AU PDF EXPORTÉ (RESPONSIVE)        */
                   /* ========================================================================= */
-                  <View style={styles.paperSheetModal}>
+                  <View style={[styles.paperSheetModal, { padding: isSmall ? 8 : isCompact ? 11 : 16 }]}>
                     {/* 1. Bannière d'en-tête */}
                     <View style={styles.bannerContainerRelative}>
                       {pdfHeaderImage ? (
-                        <Image source={{ uri: pdfHeaderImage }} style={styles.paperBannerImgModal} resizeMode="cover" />
+                        <Image
+                          source={{ uri: pdfHeaderImage }}
+                          style={[styles.paperBannerImgModal, { height: isSmall ? 65 : isCompact ? 80 : 100 }]}
+                          resizeMode="cover"
+                        />
                       ) : (
                         <LinearGradient
                           colors={['#1E3A8A', '#2563EB']}
                           start={{ x: 0, y: 0 }}
                           end={{ x: 1, y: 0 }}
-                          style={styles.paperBannerGradientModal}
+                          style={[
+                            styles.paperBannerGradientModal,
+                            { paddingVertical: isSmall ? 12 : 16, paddingHorizontal: isSmall ? 10 : 14 },
+                          ]}
                         >
-                          <Text style={styles.paperBannerTitleModal}>{companyName}</Text>
+                          <Text style={[styles.paperBannerTitleModal, { fontSize: isSmall ? 15 : 17 }]}>{companyName}</Text>
                           <Text style={styles.paperBannerSubtitleModal}>RAPPORT D'ACTIVITÉS HEBDOMADAIRE OFFICIEL</Text>
                         </LinearGradient>
                       )}
                     </View>
 
-                    {/* 2. Carte d'identité Collaborateur */}
-                    <View style={styles.paperIdentityCardModal}>
-                      <View style={styles.paperUserLeftModal}>
+                    {/* 2. Carte d'identité Collaborateur (Responsive) */}
+                    <View
+                      style={[
+                        styles.paperIdentityCardModal,
+                        isCompact && { flexDirection: 'column', alignItems: 'flex-start', gap: 10 },
+                      ]}
+                    >
+                      <View style={[styles.paperUserLeftModal, isCompact && { width: '100%' }]}>
                         {collaboratorReportData.profile.avatarUri ? (
                           <Image source={{ uri: collaboratorReportData.profile.avatarUri }} style={styles.paperAvatarModal} />
                         ) : (
@@ -1407,12 +1451,25 @@ export default function UsersManagementScreen() {
                           ) : null}
                         </View>
                       </View>
-                      <View style={styles.paperMetaRightModal}>
+                      <View
+                        style={[
+                          styles.paperMetaRightModal,
+                          isCompact && {
+                            width: '100%',
+                            flexDirection: 'row',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            borderTopWidth: 1,
+                            borderTopColor: '#E2E8F0',
+                            paddingTop: 8,
+                          },
+                        ]}
+                      >
                         <View style={styles.paperDocBadgeModal}>
                           <Text style={styles.paperDocBadgeTextModal}>RAPPORT HEBDOMADAIRE</Text>
                         </View>
                         <Text style={styles.paperPeriodTextModal}>
-                          {collaboratorReportData.report?.status === 'SUBMITTED' ? '✔ Document validé & transmis' : '⏳ En rédaction (Brouillon)'}
+                          {collaboratorReportData.report?.status === 'SUBMITTED' ? '✔ Validé & transmis' : '⏳ En rédaction (Brouillon)'}
                         </Text>
                       </View>
                     </View>
@@ -1423,7 +1480,7 @@ export default function UsersManagementScreen() {
                         <Text style={styles.paperSectionIconNumberModal}>1</Text>
                       </View>
                       <Text style={[styles.paperSectionTitleModal, { color: primaryColor }]}>
-                        Activités & Réalisations de la Semaine
+                        Activités & Réalisations
                       </Text>
                       <View style={styles.paperSectionCounterModal}>
                         <Text style={styles.paperSectionCounterTextModal}>
@@ -1454,9 +1511,9 @@ export default function UsersManagementScreen() {
 
                             {dayActs.map((act) => (
                               <View key={act.id} style={styles.paperActivityEntryModal}>
-                                <View style={styles.paperActivityTitleRowModal}>
+                                <View style={[styles.paperActivityTitleRowModal, { flexWrap: 'wrap' }]}>
                                   <View style={styles.paperActivityBulletModal} />
-                                  <Text style={styles.paperActivityTitleModal}>{act.title}</Text>
+                                  <Text style={[styles.paperActivityTitleModal, { minWidth: isSmall ? 130 : 160 }]}>{act.title}</Text>
                                   {act.category ? (
                                     <View style={styles.paperCategoryTagModal}>
                                       <Text style={styles.paperCategoryTagTextModal}>{act.category}</Text>
@@ -1509,8 +1566,13 @@ export default function UsersManagementScreen() {
                       </Text>
                     </View>
 
-                    {/* 6. Section 4 : Bloc de Visa et Signature */}
-                    <View style={styles.paperSignaturesRowModal}>
+                    {/* 6. Section 4 : Bloc de Visa et Signature (Responsive) */}
+                    <View
+                      style={[
+                        styles.paperSignaturesRowModal,
+                        isCompact && { flexDirection: 'column', gap: 10 },
+                      ]}
+                    >
                       <View style={styles.paperSignBoxModal}>
                         <Text style={styles.paperSignLabelModal}>Collaborateur</Text>
                         <Text style={styles.paperSignNameModal}>{collaboratorReportData.profile.fullName}</Text>
