@@ -10,7 +10,7 @@
     "ios": "expo run:ios",
     "tunnel": "expo start --tunnel",
     "web": "expo start --web",
-    "build": "expo export -p web",
+    "build": "expo export -p web && node -e \"const fs=require('fs');const path=require('path');if(fs.existsSync('public')) fs.cpSync('public', 'dist', {recursive: true, force: true});\"",
     "build:static": "node scripts/build.js",
     "serve": "node server/serve.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"

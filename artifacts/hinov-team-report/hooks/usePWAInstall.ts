@@ -10,6 +10,12 @@ interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
 }
 
+declare global {
+  interface Window {
+    __pwaPrompt?: BeforeInstallPromptEvent | null;
+  }
+}
+
 export function usePWAInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
@@ -19,7 +25,14 @@ export function usePWAInstall() {
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return;
 
-    // 1. Vérifier si l'application est déjà exécutée en mode Standalone (déjà installée)
+    // 1. Enregistrer le Service Worker si supporté
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch((err) => {
+        console.warn('SW register error:', err);
+      });
+    }
+
+    // 2. Vérifier si l'application est déjà exécutée en mode Standalone (déjà installée)
     const isStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as any).standalone === true ||
@@ -30,30 +43,46 @@ export function usePWAInstall() {
       return;
     }
 
-    // 2. Détecter si l'utilisateur est sur iOS (Safari ou Webview)
+    // 3. Détecter si l'utilisateur est sur iOS (Safari ou Webview)
     const userAgent = window.navigator.userAgent.toLowerCase();
     const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
     if (isIosDevice && !isStandalone) {
       setIsIOS(true);
     }
 
-    // 3. Écouter l'événement beforeinstallprompt (Chrome, Edge, Android, Opera)
+    // 4. Vérifier si l'événement a déjà été capturé avant le montage du composant
+    if (window.__pwaPrompt) {
+      setDeferredPrompt(window.__pwaPrompt);
+    }
+
+    // 5. Écouter l'événement beforeinstallprompt et l'événement custom pwa-prompt-ready
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
+      const promptEvent = e as BeforeInstallPromptEvent;
+      window.__pwaPrompt = promptEvent;
+      setDeferredPrompt(promptEvent);
     };
 
-    // 4. Écouter l'événement appinstalled
+    const handlePromptReady = () => {
+      if (window.__pwaPrompt) {
+        setDeferredPrompt(window.__pwaPrompt);
+      }
+    };
+
+    // 6. Écouter l'événement appinstalled
     const handleAppInstalled = () => {
       setIsInstalled(true);
       setDeferredPrompt(null);
+      window.__pwaPrompt = null;
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('pwa-prompt-ready', handlePromptReady);
     window.addEventListener('appinstalled', handleAppInstalled);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('pwa-prompt-ready', handlePromptReady);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
@@ -61,16 +90,22 @@ export function usePWAInstall() {
   const promptInstall = useCallback(async (): Promise<'prompted' | 'manual' | 'installed'> => {
     if (isInstalled) return 'installed';
 
-    if (deferredPrompt) {
+    const promptObj = deferredPrompt || (typeof window !== 'undefined' ? window.__pwaPrompt : null);
+
+    if (promptObj) {
       try {
-        await deferredPrompt.prompt();
-        const choiceResult = await deferredPrompt.userChoice;
+        await promptObj.prompt();
+        const choiceResult = await promptObj.userChoice;
         if (choiceResult.outcome === 'accepted') {
           setIsInstalled(true);
         }
         setDeferredPrompt(null);
+        if (typeof window !== 'undefined') {
+          window.__pwaPrompt = null;
+        }
         return 'prompted';
-      } catch {
+      } catch (e) {
+        console.warn('Install prompt error:', e);
         return 'manual';
       }
     }
@@ -89,8 +124,9 @@ export function usePWAInstall() {
     canInstall,
     isInstalled,
     isIOS,
-    hasNativePrompt: Boolean(deferredPrompt),
+    hasNativePrompt: Boolean(deferredPrompt || (typeof window !== 'undefined' && window.__pwaPrompt)),
     promptInstall,
     dismissBanner,
   };
 }
+

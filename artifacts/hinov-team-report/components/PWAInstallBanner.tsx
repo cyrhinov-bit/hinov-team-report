@@ -19,7 +19,7 @@ export function PWAInstallBanner() {
   }
 
   const handleInstallClick = async () => {
-    if (isIOS || !hasNativePrompt) {
+    if (isIOS) {
       setShowGuideModal(true);
       return;
     }
@@ -28,6 +28,7 @@ export function PWAInstallBanner() {
       setShowGuideModal(true);
     }
   };
+
 
   return (
     <>
