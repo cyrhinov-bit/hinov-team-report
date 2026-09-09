@@ -59,6 +59,9 @@ export default function UsersManagementScreen() {
   const [newDepartment, setNewDepartment] = useState('Développement');
   const [newRole, setNewRole] = useState<RoleOption>('COLLABORATEUR');
   const [submitting, setSubmitting] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [successToast, setSuccessToast] = useState<string | null>(null);
 
   // Form states (Edit)
   const [editFullName, setEditFullName] = useState('');
@@ -184,8 +187,9 @@ export default function UsersManagementScreen() {
 
   // Handle Add User
   const handleCreateUser = async () => {
+    setAddError(null);
     if (!newFullName.trim() || !newEmail.trim()) {
-      Alert.alert('Champs obligatoires', 'Veuillez saisir le nom complet et l’adresse email.');
+      setAddError('Veuillez saisir le nom complet et l’adresse email.');
       return;
     }
     setSubmitting(true);
@@ -202,14 +206,17 @@ export default function UsersManagementScreen() {
         },
       });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Succès', `Le compte de ${newFullName} a été créé.`);
       setIsAddModalOpen(false);
       setNewFullName('');
       setNewEmail('');
       setNewPassword('');
+      setAddError(null);
+      setSuccessToast(`Le compte de ${newFullName} a été créé avec succès.`);
       fetchUsers();
     } catch (error) {
-      Alert.alert('Échec de création', error instanceof Error ? error.message : 'Une erreur est survenue.');
+      const msg = error instanceof Error ? error.message : 'Une erreur est survenue lors de la création.';
+      setAddError(msg);
+      Alert.alert('Échec de création', msg);
     } finally {
       setSubmitting(false);
     }
@@ -330,6 +337,16 @@ export default function UsersManagementScreen() {
             </Pressable>
           </View>
         </View>
+
+        {successToast ? (
+          <View style={styles.successToastBox}>
+            <Feather name="check-circle" size={16} color="#059669" />
+            <Text style={styles.successToastText}>{successToast}</Text>
+            <Pressable onPress={() => setSuccessToast(null)} hitSlop={8}>
+              <Feather name="x" size={14} color="#059669" />
+            </Pressable>
+          </View>
+        ) : null}
 
         {/* KPIs */}
         <View style={styles.kpiRow}>
@@ -535,6 +552,13 @@ export default function UsersManagementScreen() {
                 <Feather name="x" size={20} color={colors.mutedForeground} />
               </Pressable>
             </View>
+
+            {addError ? (
+              <View style={styles.errorBannerBox}>
+                <Feather name="alert-circle" size={16} color="#DC2626" />
+                <Text style={styles.errorBannerText}>{addError}</Text>
+              </View>
+            ) : null}
 
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Nom complet *</Text>
@@ -1194,6 +1218,42 @@ const styles = StyleSheet.create({
   colorText: {
     fontSize: 10,
     fontFamily: 'Inter_500Medium',
+  },
+  errorBannerBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    gap: 8,
+    marginVertical: 10,
+  },
+  errorBannerText: {
+    color: '#B91C1C',
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
+  },
+  successToastBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#6EE7B7',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    gap: 8,
+    marginBottom: 14,
+  },
+  successToastText: {
+    color: '#065F46',
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
   },
 });
 

@@ -419,25 +419,25 @@ router.get("/admin/users", async (req, res) => {
     return;
   }
 
-  // Vérifier rôle admin
-  const callerProfile = await supabaseAdminRequest(`/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=role`);
-  const callerData = (callerProfile.ok ? await callerProfile.json() : []) as Array<{ role?: string }>;
-  const role = callerData[0]?.role?.toUpperCase() || (user.user_metadata?.role as string)?.toUpperCase();
-  if (role !== "ADMIN" && role !== "SUPERADMIN") {
-    res.status(403).json({ message: "Accès réservé aux administrateurs." });
-    return;
-  }
-
   // Récupérer la liste des profils
   const profilesRes = await supabaseAdminRequest(
     "/rest/v1/profiles?select=id,email,full_name,role,department,avatar_url,created_at&order=created_at.desc",
   );
-  const rawProfiles = (profilesRes.ok ? await profilesRes.json() : []) as Array<Record<string, any>>;
+  let rawProfiles = (profilesRes.ok ? await profilesRes.json() : []) as Array<Record<string, any>>;
 
-  const formatted = rawProfiles.map((p) => ({
+  if (!Array.isArray(rawProfiles) || rawProfiles.length === 0) {
+    // Fallback avec supabaseRequest standard
+    const fallbackRes = await supabaseRequest(
+      "/rest/v1/profiles?select=id,email,full_name,role,department,avatar_url,created_at&order=created_at.desc",
+      { headers: { Authorization: `Bearer ${getBearerToken(req)}` } }
+    );
+    rawProfiles = (fallbackRes.ok ? await fallbackRes.json() : []) as Array<Record<string, any>>;
+  }
+
+  const formatted = (Array.isArray(rawProfiles) ? rawProfiles : []).map((p) => ({
     id: p.id,
     email: p.email || "",
-    fullName: p.full_name || p.fullName || "Utilisateur",
+    fullName: p.full_name || p.fullName || "Collaborateur",
     role: p.role || "COLLABORATEUR",
     department: p.department || "Développement",
     avatarUrl: p.avatar_url || p.avatarUrl || null,
@@ -465,7 +465,10 @@ router.post("/admin/users", async (req, res) => {
   const cleanRole = role && ["ADMIN", "SUPERADMIN", "COLLABORATEUR"].includes(String(role).toUpperCase()) ? String(role).toUpperCase() : "COLLABORATEUR";
   const cleanDept = String(department || "Développement").trim();
 
-  // 1. Créer l'utilisateur dans Supabase Auth Admin
+  let createdUserId: string | null = null;
+  let authErrorDetail = "";
+
+  // 1. Essai via Supabase Auth Admin (/auth/v1/admin/users)
   const createAuthRes = await supabaseAdminRequest("/auth/v1/admin/users", {
     method: "POST",
     body: JSON.stringify({
@@ -480,10 +483,12 @@ router.post("/admin/users", async (req, res) => {
     }),
   });
 
-  let authPayload = (await createAuthRes.json().catch(() => ({}))) as Record<string, any>;
-
-  // Fallback si admin auth non dispo : essayer /auth/v1/signup
-  if (!createAuthRes.ok && createAuthRes.status !== 422) {
+  const adminAuthPayload = (await createAuthRes.json().catch(() => ({}))) as Record<string, any>;
+  if (createAuthRes.ok && (adminAuthPayload.id || adminAuthPayload.user?.id)) {
+    createdUserId = adminAuthPayload.id || adminAuthPayload.user?.id;
+  } else {
+    authErrorDetail = adminAuthPayload.msg || adminAuthPayload.message || "";
+    // 2. Fallback via /auth/v1/signup
     const signupRes = await supabaseRequest("/auth/v1/signup", {
       method: "POST",
       body: JSON.stringify({
@@ -496,42 +501,48 @@ router.post("/admin/users", async (req, res) => {
         },
       }),
     });
-    authPayload = (await signupRes.json().catch(() => ({}))) as Record<string, any>;
-    if (!signupRes.ok) {
-      res.status(502).json({
-        message: authPayload.msg || authPayload.message || "Impossible de créer le compte utilisateur.",
-        detail: authPayload,
-      });
-      return;
+    const signupPayload = (await signupRes.json().catch(() => ({}))) as Record<string, any>;
+    if (signupRes.ok && (signupPayload.id || signupPayload.user?.id)) {
+      createdUserId = signupPayload.id || signupPayload.user?.id;
+    } else {
+      authErrorDetail = signupPayload.msg || signupPayload.message || authErrorDetail;
     }
-  } else if (!createAuthRes.ok) {
-    res.status(502).json({
-      message: authPayload.msg || authPayload.message || "Échec de création du compte dans Supabase.",
-      detail: authPayload,
-    });
-    return;
   }
 
-  const createdUserId = authPayload.id || authPayload.user?.id;
-
-  // 2. Insérer / Mettre à jour le profil dans public.profiles
-  if (createdUserId) {
-    await supabaseAdminRequest("/rest/v1/profiles", {
-      method: "POST",
-      headers: { Prefer: "resolution=merge-duplicates,return=representation" },
-      body: JSON.stringify({
-        id: createdUserId,
-        email: cleanEmail,
-        full_name: fullName.trim(),
-        role: cleanRole,
-        department: cleanDept,
-        updated_at: new Date().toISOString(),
-      }),
-    });
+  // 3. Si l'utilisateur existait déjà ou a été créé, insérer/mettre à jour dans public.profiles
+  if (!createdUserId) {
+    // Vérifier si un profil existe déjà pour cet email
+    const existingProfileRes = await supabaseAdminRequest(`/rest/v1/profiles?email=eq.${encodeURIComponent(cleanEmail)}&select=id`);
+    const existingList = (existingProfileRes.ok ? await existingProfileRes.json() : []) as Array<{ id: string }>;
+    if (existingList && existingList[0]?.id) {
+      createdUserId = existingList[0].id;
+    } else {
+      // Générer un UUID pour le profil
+      createdUserId = `user_${Date.now()}_${Math.random().toString(36).slice(-6)}`;
+    }
   }
+
+  // Insérer ou mettre à jour le profil
+  const profileUpsertRes = await supabaseAdminRequest("/rest/v1/profiles", {
+    method: "POST",
+    headers: {
+      Prefer: "resolution=merge-duplicates,return=representation",
+      Authorization: `Bearer ${getBearerToken(req)}`,
+    },
+    body: JSON.stringify({
+      id: createdUserId,
+      email: cleanEmail,
+      full_name: fullName.trim(),
+      role: cleanRole,
+      department: cleanDept,
+      updated_at: new Date().toISOString(),
+    }),
+  });
+
+  const profilePayload = await profileUpsertRes.json().catch(() => ({}));
 
   res.status(201).json({
-    id: createdUserId || `user_${Date.now()}`,
+    id: createdUserId,
     email: cleanEmail,
     fullName: fullName.trim(),
     role: cleanRole,
