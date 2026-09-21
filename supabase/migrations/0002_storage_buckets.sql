@@ -24,3 +24,4 @@ USING (
   bucket_id IN ('avatars', 'reports_pdf')
   AND auth.role() = 'authenticated'
 );
+

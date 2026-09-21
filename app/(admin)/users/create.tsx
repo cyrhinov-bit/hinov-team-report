@@ -122,20 +122,46 @@ export default function CreateUserScreen() {
           />
 
           <Input
-            label="Fonction / Poste"
-            placeholder="Ex : Responsable Commercial"
+            label="Fonction / Intitulé du Poste *"
+            placeholder="Ex : Ingénieur Logiciel, Chef de Projet..."
             value={jobTitle}
             onChangeText={setJobTitle}
             leftIcon={<Briefcase size={18} color={COLORS.textSecondary} />}
           />
+          <View style={styles.suggestionsContainer}>
+            {['Ingénieur Logiciel', 'Chef de Projet', 'Consultant Cybersécurité', 'Responsable Commercial', 'Product Owner', 'Auditeur Financier'].map((func) => (
+              <TouchableOpacity
+                key={func}
+                style={[styles.suggestionChip, jobTitle === func && styles.suggestionChipActive]}
+                onPress={() => setJobTitle(func)}
+              >
+                <Text style={[styles.suggestionChipText, jobTitle === func && styles.suggestionChipTextActive]}>
+                  {func}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
           <Input
-            label="Département"
-            placeholder="Ex : Pôle Commercial & Marketing"
+            label="Département / Direction"
+            placeholder="Ex : Pôle Ingénierie & Solutions"
             value={department}
             onChangeText={setDepartment}
             leftIcon={<Building size={18} color={COLORS.textSecondary} />}
           />
+          <View style={styles.suggestionsContainer}>
+            {['Pôle Ingénierie & Tech', 'Commercial & Marketing', 'Direction Générale', 'Finance & RH', 'Support & Exploitation'].map((dep) => (
+              <TouchableOpacity
+                key={dep}
+                style={[styles.suggestionChip, department === dep && styles.suggestionChipActive]}
+                onPress={() => setDepartment(dep)}
+              >
+                <Text style={[styles.suggestionChipText, department === dep && styles.suggestionChipTextActive]}>
+                  {dep}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
           {/* Role Selection */}
           <Text style={styles.sectionLabel}>Rôle attribué :</Text>
@@ -334,6 +360,34 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     color: COLORS.textSecondary,
     marginTop: 1,
+  },
+  suggestionsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: -8,
+    marginBottom: 14,
+  },
+  suggestionChip: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  suggestionChipActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: COLORS.primaryAccent,
+  },
+  suggestionChipText: {
+    fontSize: 11.5,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+  },
+  suggestionChipTextActive: {
+    color: COLORS.primaryAccent,
+    fontWeight: '700',
   },
 });
 
