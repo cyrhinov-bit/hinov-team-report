@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,18 +10,37 @@ import {
   Alert,
   Image,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { COLORS } from '@/constants/colors';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { Mail, Lock, ShieldCheck } from 'lucide-react-native';
+import { Mail, Lock, ShieldCheck, CheckCircle2 } from 'lucide-react-native';
 
 export default function LoginScreen() {
   const { login, isLoading } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const params = useLocalSearchParams<{
+    initialEmail?: string;
+    initialPassword?: string;
+    successMessage?: string;
+  }>();
+
+  const [email, setEmail] = useState(params.initialEmail || '');
+  const [password, setPassword] = useState(params.initialPassword || '');
   const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState(params.successMessage || '');
+
+  useEffect(() => {
+    if (params.initialEmail) {
+      setEmail(params.initialEmail);
+    }
+    if (params.initialPassword) {
+      setPassword(params.initialPassword);
+    }
+    if (params.successMessage) {
+      setSuccessMsg(params.successMessage);
+    }
+  }, [params.initialEmail, params.initialPassword, params.successMessage]);
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
@@ -65,6 +84,13 @@ export default function LoginScreen() {
         <View style={styles.card}>
           <Text style={styles.formTitle}>Connexion Professionnelle</Text>
 
+          {Boolean(successMsg) && (
+            <View style={styles.successBanner}>
+              <CheckCircle2 size={18} color="#16A34A" style={{ marginTop: 2 }} />
+              <Text style={styles.successBannerText}>{successMsg}</Text>
+            </View>
+          )}
+
           {Boolean(errorMsg) && (
             <View style={styles.errorBanner}>
               <Text style={styles.errorBannerText}>{errorMsg}</Text>
@@ -78,6 +104,7 @@ export default function LoginScreen() {
             onChangeText={(t) => {
               setEmail(t);
               setErrorMsg('');
+              setSuccessMsg('');
             }}
             keyboardType="email-address"
             autoCapitalize="none"
@@ -91,6 +118,7 @@ export default function LoginScreen() {
             onChangeText={(t) => {
               setPassword(t);
               setErrorMsg('');
+              setSuccessMsg('');
             }}
             isPassword
             leftIcon={<Lock size={18} color={COLORS.textSecondary} />}
@@ -200,6 +228,24 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     marginBottom: 20,
     textAlign: 'center',
+  },
+  successBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    gap: 8,
+  },
+  successBannerText: {
+    fontSize: 12.5,
+    color: '#166534',
+    fontWeight: '600',
+    flex: 1,
+    lineHeight: 17,
   },
   errorBanner: {
     backgroundColor: '#FEE2E2',

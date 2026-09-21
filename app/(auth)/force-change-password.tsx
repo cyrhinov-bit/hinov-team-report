@@ -18,7 +18,7 @@ import { evaluatePasswordStrength } from '@/utils/validation';
 import { Lock, ShieldAlert } from 'lucide-react-native';
 
 export default function ForceChangePasswordScreen() {
-  const { user, updatePassword } = useAuth();
+  const { user, updatePassword, logout } = useAuth();
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -42,20 +42,21 @@ export default function ForceChangePasswordScreen() {
     setLoading(true);
     setErrorMsg('');
 
+    const userEmail = user?.email || '';
     const res = await updatePassword(newPassword);
     setLoading(false);
 
     if (res.success) {
-      Alert.alert(
-        'Mot de passe mis à jour !',
-        'Votre nouveau mot de passe a été enregistré. Bienvenue sur Hinov Team Report.',
-        [
-          {
-            text: 'Accéder à l’application',
-            onPress: () => router.replace('/(collaborator)'),
-          },
-        ]
-      );
+      await logout();
+      router.replace({
+        pathname: '/(auth)/login',
+        params: {
+          initialEmail: userEmail,
+          initialPassword: newPassword,
+          successMessage:
+            '✓ Votre mot de passe a été enregistré avec succès ! Vos identifiants sont pré-remplis ci-dessous pour votre première connexion.',
+        },
+      });
     } else {
       setErrorMsg(res.error || 'Erreur lors de la mise à jour du mot de passe.');
     }
