@@ -89,18 +89,24 @@ CREATE INDEX IF NOT EXISTS idx_reports_user_week ON public.reports(user_id, week
 CREATE INDEX IF NOT EXISTS idx_reports_status ON public.reports(status);
 CREATE INDEX IF NOT EXISTS idx_reports_week_year ON public.reports(week_number, year);
 
--- 6. COMPANY SETTINGS TABLE
-CREATE TABLE IF NOT EXISTS public.company_settings (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_name TEXT NOT NULL DEFAULT 'HINOV Group',
-    logo_url TEXT,
+-- 6. APP SETTINGS TABLE (Branding, PDF Header Banner & Configurations)
+CREATE TABLE IF NOT EXISTS public.app_settings (
+    id TEXT PRIMARY KEY DEFAULT 'default',
+    company_name TEXT NOT NULL DEFAULT 'HINOV GROUP',
+    pdf_header_image TEXT,
+    pdf_footer_text TEXT NOT NULL DEFAULT 'HINOV Team Report • Document Confidentiel d’Entreprise',
     director_email TEXT NOT NULL DEFAULT 'direction@hinovgroup.com',
     superadmin_report_recipient TEXT DEFAULT 'superadmin@hinovgroup.com',
-    reminder_cron TEXT DEFAULT '0 16 * * 5', -- Every Friday at 16:00
-    smtp_from TEXT DEFAULT 'rapports@hinovgroup.com',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+    reminder_cron TEXT DEFAULT 'Tous les vendredis à 16h00',
+    primary_color TEXT NOT NULL DEFAULT '#1E3A8A',
+    secondary_color TEXT NOT NULL DEFAULT '#4F46E5',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    updated_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL
 );
+
+INSERT INTO public.app_settings (id, company_name, pdf_footer_text, director_email, superadmin_report_recipient)
+VALUES ('default', 'HINOV GROUP', 'HINOV Team Report • Document Confidentiel d’Entreprise', 'direction@hinovgroup.com', 'superadmin@hinovgroup.com')
+ON CONFLICT (id) DO NOTHING;
 
 -- 7. AUDIT LOGS TABLE
 CREATE TABLE IF NOT EXISTS public.audit_logs (

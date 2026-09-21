@@ -125,3 +125,4 @@ export const SettingsService = {
     return this.updateSettings({ pdf_header_image: null });
   },
 };
+

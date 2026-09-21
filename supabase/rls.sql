@@ -92,19 +92,26 @@ CREATE POLICY "Reports user update" ON public.reports
         auth.uid() = user_id
     );
 
--- 6. COMPANY SETTINGS POLICIES
--- All authenticated users can read company settings
-DROP POLICY IF EXISTS "Company settings select" ON public.company_settings;
-CREATE POLICY "Company settings select" ON public.company_settings
-    FOR SELECT USING (
-        auth.role() = 'authenticated'
-    );
+-- 6. APP SETTINGS POLICIES
+ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 
--- Only Super Admin can update settings
-DROP POLICY IF EXISTS "Company settings update" ON public.company_settings;
-CREATE POLICY "Company settings update" ON public.company_settings
-    FOR ALL USING (
-        public.is_super_admin()
+DROP POLICY IF EXISTS "Allow authenticated users to read app_settings" ON public.app_settings;
+CREATE POLICY "Allow authenticated users to read app_settings"
+    ON public.app_settings
+    FOR SELECT
+    TO authenticated
+    USING (true);
+
+DROP POLICY IF EXISTS "Allow admin to insert or update app_settings" ON public.app_settings;
+CREATE POLICY "Allow admin to insert or update app_settings"
+    ON public.app_settings
+    FOR ALL
+    TO authenticated
+    USING (
+        public.is_admin()
+    )
+    WITH CHECK (
+        public.is_admin()
     );
 
 -- 7. AUDIT LOGS POLICIES
