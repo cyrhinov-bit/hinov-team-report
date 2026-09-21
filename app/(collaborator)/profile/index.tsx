@@ -7,12 +7,14 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { useAuth } from '@/contexts/AuthContext';
 import { COLORS } from '@/constants/colors';
+import { confirmAction } from '@/utils/alert';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -85,22 +87,31 @@ export default function ProfileScreen() {
   };
 
   const showPhotoOptions = () => {
-    Alert.alert(
-      'Photo de Profil',
-      'Votre photo sera automatiquement intégrée à l’en-tête de vos rapports hebdomadaires PDF.',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Prendre une photo', onPress: () => handlePickImage(true) },
-        { text: 'Choisir depuis la galerie', onPress: () => handlePickImage(false) },
-      ]
-    );
+    if (Platform.OS === 'web') {
+      handlePickImage(false);
+    } else {
+      Alert.alert(
+        'Photo de Profil',
+        'Votre photo sera automatiquement intégrée à l’en-tête de vos rapports hebdomadaires PDF.',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Prendre une photo', onPress: () => handlePickImage(true) },
+          { text: 'Choisir depuis la galerie', onPress: () => handlePickImage(false) },
+        ]
+      );
+    }
   };
 
   const handleLogout = () => {
-    Alert.alert('Déconnexion', 'Voulez-vous vraiment vous déconnecter de votre session ?', [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Déconnexion', style: 'destructive', onPress: logout },
-    ]);
+    confirmAction({
+      title: 'Déconnexion',
+      message: 'Voulez-vous vraiment vous déconnecter de votre session ?',
+      confirmText: 'Déconnexion',
+      destructive: true,
+      onConfirm: async () => {
+        await logout();
+      },
+    });
   };
 
   return (

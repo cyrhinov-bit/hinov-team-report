@@ -16,6 +16,7 @@ import { UserCard } from '@/components/admin/UserCard';
 import { TempPasswordModal } from '@/components/admin/TempPasswordModal';
 import { AdminService } from '@/services/admin';
 import { UserProfile, AppRole } from '@/types';
+import { confirmAction, showAlert } from '@/utils/alert';
 import { Search, UserPlus, Filter, X } from 'lucide-react-native';
 
 export default function AdminUsersScreen() {
@@ -23,7 +24,7 @@ export default function AdminUsersScreen() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [roleFilter, setRoleFilter] = useState<AppRole | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
   // Temp Password Modal state
@@ -39,7 +40,7 @@ export default function AdminUsersScreen() {
   useFocusEffect(
     useCallback(() => {
       loadUsers();
-    }, [currentUser])
+    }, [])
   );
 
   const onRefresh = async () => {
@@ -49,59 +50,49 @@ export default function AdminUsersScreen() {
   };
 
   const handleResetPassword = async (targetUser: UserProfile) => {
-    Alert.alert(
-      'Réinitialiser le mot de passe',
-      `Un nouveau mot de passe temporaire sera généré pour ${targetUser.full_name}. Il sera affiché une seule fois.`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Générer',
-          onPress: async () => {
-            const res = await AdminService.resetUserPassword(targetUser.id);
-            if (res.success && res.temporaryPassword) {
-              setTempPassword(res.temporaryPassword);
-              setSelectedTargetUser(targetUser);
-              setTempModalVisible(true);
-              await loadUsers();
-            } else {
-              Alert.alert('Erreur', res.error || 'Impossible de réinitialiser le mot de passe.');
-            }
-          },
-        },
-      ]
-    );
+    confirmAction({
+      title: 'Réinitialiser le mot de passe',
+      message: `Un nouveau mot de passe temporaire sera généré pour ${targetUser.full_name}. Il sera affiché une seule fois.`,
+      confirmText: 'Générer',
+      onConfirm: async () => {
+        const res = await AdminService.resetUserPassword(targetUser.id);
+        if (res.success && res.temporaryPassword) {
+          setTempPassword(res.temporaryPassword);
+          setSelectedTargetUser(targetUser);
+          setTempModalVisible(true);
+          await loadUsers();
+        } else {
+          showAlert('Erreur', res.error || 'Impossible de réinitialiser le mot de passe.');
+        }
+      },
+    });
   };
 
   const handleToggleActive = async (targetUser: UserProfile) => {
     if (targetUser.id === currentUser?.id) {
-      Alert.alert('Action interdite', 'Vous ne pouvez pas désactiver votre propre compte.');
+      showAlert('Action interdite', 'Vous ne pouvez pas désactiver votre propre compte.');
       return;
     }
 
     const nextState = !targetUser.is_active;
     const actionLabel = nextState ? 'Activer' : 'Désactiver';
 
-    Alert.alert(
-      `${actionLabel} le compte`,
-      `Confirmez-vous la modification du statut de ${targetUser.full_name} ?`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: actionLabel,
-          style: nextState ? 'default' : 'destructive',
-          onPress: async () => {
-            const res = await AdminService.toggleUserActiveStatus(targetUser.id, nextState);
-            if (res.success) {
-              setUsers((prev) =>
-                prev.map((u) => (u.id === targetUser.id ? { ...u, is_active: nextState } : u))
-              );
-            } else {
-              Alert.alert('Erreur', res.error || 'Erreur lors de la modification.');
-            }
-          },
-        },
-      ]
-    );
+    confirmAction({
+      title: `${actionLabel} le compte`,
+      message: `Confirmez-vous la modification du statut de ${targetUser.full_name} ?`,
+      confirmText: actionLabel,
+      destructive: !nextState,
+      onConfirm: async () => {
+        const res = await AdminService.toggleUserActiveStatus(targetUser.id, nextState);
+        if (res.success) {
+          setUsers((prev) =>
+            prev.map((u) => (u.id === targetUser.id ? { ...u, is_active: nextState } : u))
+          );
+        } else {
+          showAlert('Erreur', res.error || 'Erreur lors de la modification.');
+        }
+      },
+    });
   };
 
   // Filter logic

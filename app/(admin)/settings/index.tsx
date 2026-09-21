@@ -18,6 +18,7 @@ import { COLORS } from '@/constants/colors';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { SettingsService } from '@/services/settings';
+import { confirmAction, showAlert } from '@/utils/alert';
 import {
   Building2,
   Mail,
@@ -106,24 +107,19 @@ export default function AdminSettingsScreen() {
   };
 
   const handleDeleteHeaderImage = () => {
-    Alert.alert(
-      'Supprimer l’image d’en-tête ?',
-      'Le document PDF utilisera l’en-tête textuel par défaut de l’entreprise.',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            setUploadingImage(true);
-            await SettingsService.deleteHeaderImage();
-            setHeaderImage(null);
-            setUploadingImage(false);
-            Alert.alert('Image supprimée', 'L’en-tête textuel par défaut a été réactivé.');
-          },
-        },
-      ]
-    );
+    confirmAction({
+      title: 'Supprimer l’image d’en-tête ?',
+      message: 'Le document PDF utilisera l’en-tête textuel par défaut de l’entreprise.',
+      confirmText: 'Supprimer',
+      destructive: true,
+      onConfirm: async () => {
+        setUploadingImage(true);
+        await SettingsService.deleteHeaderImage();
+        setHeaderImage(null);
+        setUploadingImage(false);
+        showAlert('Image supprimée', 'L’en-tête textuel par défaut a été réactivé.');
+      },
+    });
   };
 
   const handleSave = async () => {

@@ -19,6 +19,7 @@ import { PdfService } from '@/services/pdf';
 import { SettingsService } from '@/services/settings';
 import { WeeklyReport, Activity, CompanySettings } from '@/types';
 import { FRENCH_DAYS } from '@/utils/date';
+import { confirmAction, showAlert } from '@/utils/alert';
 import {
   Share2,
   Printer,
@@ -82,42 +83,34 @@ export default function ReportPreviewScreen() {
   };
 
   const handleSubmit = async () => {
-    Alert.alert(
-      'Soumission Définitive',
-      isDirector
+    confirmAction({
+      title: 'Soumission Définitive',
+      message: isDirector
         ? 'Confirmez-vous la validation et l’archivage de votre rapport hebdomadaire personnel ?'
         : 'Confirmez-vous l’envoi automatique de votre rapport et du PDF généré au Directeur par email ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Confirmer & Soumettre',
-          onPress: async () => {
-            setSubmitting(true);
-            try {
-              // Generate PDF base64 for email attachment
-              const pdfFile = await PdfService.generatePdfFile(report!, user, activitiesByDay, settings || undefined);
-              const res = await ReportsService.submitReport(report!, user, pdfFile.base64);
+      confirmText: 'Confirmer & Soumettre',
+      onConfirm: async () => {
+        setSubmitting(true);
+        try {
+          // Generate PDF base64 for email attachment
+          const pdfFile = await PdfService.generatePdfFile(report!, user, activitiesByDay, settings || undefined);
+          const res = await ReportsService.submitReport(report!, user, pdfFile.base64);
 
-              setSubmitting(false);
+          setSubmitting(false);
 
-              if (res.success) {
-                Alert.alert('Succès', res.message || 'Rapport transmis avec succès !', [
-                  {
-                    text: 'OK',
-                    onPress: () => router.replace('/(collaborator)'),
-                  },
-                ]);
-              } else {
-                Alert.alert('Notice', res.error || 'Erreur de transmission');
-              }
-            } catch (err: any) {
-              setSubmitting(false);
-              Alert.alert('Erreur', err.message || 'Erreur lors de la soumission');
-            }
-          },
-        },
-      ]
-    );
+          if (res.success) {
+            showAlert('Succès', res.message || 'Rapport transmis avec succès !', () => {
+              router.replace('/(collaborator)');
+            });
+          } else {
+            showAlert('Notice', res.error || 'Erreur de transmission');
+          }
+        } catch (err: any) {
+          setSubmitting(false);
+          showAlert('Erreur', err.message || 'Erreur lors de la soumission');
+        }
+      },
+    });
   };
 
   return (

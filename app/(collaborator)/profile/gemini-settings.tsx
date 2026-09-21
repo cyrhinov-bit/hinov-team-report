@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Sparkles, Key, Info, CheckCircle2 } from 'lucide-react-native';
 import { GeminiService } from '@/services/gemini';
+import { showAlert } from '@/utils/alert';
 
 export default function GeminiSettingsScreen() {
   const { user, updateProfile } = useAuth();
@@ -24,7 +25,7 @@ export default function GeminiSettingsScreen() {
 
   const handleTestKey = async () => {
     if (!apiKey.trim()) {
-      Alert.alert('Clé requise', 'Veuillez saisir votre clé API avant de tester.');
+      showAlert('Clé requise', 'Veuillez saisir votre clé API avant de tester.');
       return;
     }
     setTesting(true);
@@ -32,9 +33,9 @@ export default function GeminiSettingsScreen() {
     setTesting(false);
 
     if (res.success) {
-      Alert.alert('Connexion Réussie !', 'Votre clé API Gemini est valide et prête à l’emploi.');
+      showAlert('Connexion Réussie !', 'Votre clé API Gemini est valide et prête à l’emploi.');
     } else {
-      Alert.alert('Erreur de validation', res.error || 'La clé API semble invalide.');
+      showAlert('Erreur de validation', res.error || 'La clé API semble invalide.');
     }
   };
 
@@ -46,13 +47,13 @@ export default function GeminiSettingsScreen() {
     setLoading(false);
 
     if (ok) {
-      Alert.alert(
+      showAlert(
         'Configuration Gemini Enregistrée',
         'Votre clé API personnelle sera utilisée pour la génération et l’amélioration de vos rapports.',
-        [{ text: 'OK', onPress: () => router.back() }]
+        () => router.back()
       );
     } else {
-      Alert.alert('Erreur', 'Impossible de sauvegarder la configuration.');
+      showAlert('Erreur', 'Impossible de sauvegarder la configuration.');
     }
   };
 

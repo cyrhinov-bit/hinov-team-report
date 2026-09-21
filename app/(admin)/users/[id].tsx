@@ -23,6 +23,7 @@ import { TempPasswordModal } from '@/components/admin/TempPasswordModal';
 import { AdminService } from '@/services/admin';
 import { UserProfile, AppRole } from '@/types';
 import { AVAILABLE_JOB_TITLES, AVAILABLE_DEPARTMENTS } from '@/constants/organization';
+import { confirmAction, showAlert } from '@/utils/alert';
 import {
   KeyRound,
   Power,
@@ -118,55 +119,47 @@ export default function UserDetailScreen() {
 
   const handleResetPassword = async () => {
     if (!targetUser) return;
-    Alert.alert(
-      'Réinitialisation du mot de passe',
-      `Générer un nouveau mot de passe temporaire pour ${targetUser.full_name} ? Il sera affiché UNE SEULE FOIS.`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Générer',
-          onPress: async () => {
-            const res = await AdminService.resetUserPassword(targetUser.id);
-            if (res.success && res.temporaryPassword) {
-              setTempPassword(res.temporaryPassword);
-              setTempModalVisible(true);
-              await loadUser();
-            } else {
-              Alert.alert('Erreur', res.error || 'Impossible de réinitialiser le mot de passe.');
-            }
-          },
-        },
-      ]
-    );
+    confirmAction({
+      title: 'Réinitialisation du mot de passe',
+      message: `Générer un nouveau mot de passe temporaire pour ${targetUser.full_name} ? Il sera affiché UNE SEULE FOIS.`,
+      confirmText: 'Générer',
+      onConfirm: async () => {
+        const res = await AdminService.resetUserPassword(targetUser.id);
+        if (res.success && res.temporaryPassword) {
+          setTempPassword(res.temporaryPassword);
+          setTempModalVisible(true);
+          await loadUser();
+        } else {
+          showAlert('Erreur', res.error || 'Impossible de réinitialiser le mot de passe.');
+        }
+      },
+    });
   };
 
   const handleToggleStatus = async () => {
     if (!targetUser) return;
     if (targetUser.id === currentUser?.id) {
-      Alert.alert('Action interdite', 'Vous ne pouvez pas désactiver votre propre compte.');
+      showAlert('Action interdite', 'Vous ne pouvez pas désactiver votre propre compte.');
       return;
     }
 
     const nextState = !targetUser.is_active;
     const actionLabel = nextState ? 'Activer' : 'Désactiver';
 
-    Alert.alert(
-      `${actionLabel} le compte`,
-      `Confirmez-vous le passage du compte à "${actionLabel}" ?`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: actionLabel,
-          style: nextState ? 'default' : 'destructive',
-          onPress: async () => {
-            const res = await AdminService.toggleUserActiveStatus(targetUser.id, nextState);
-            if (res.success) {
-              setTargetUser((prev) => (prev ? { ...prev, is_active: nextState } : null));
-            }
-          },
-        },
-      ]
-    );
+    confirmAction({
+      title: `${actionLabel} le compte`,
+      message: `Confirmez-vous le passage du compte à "${actionLabel}" ?`,
+      confirmText: actionLabel,
+      destructive: !nextState,
+      onConfirm: async () => {
+        const res = await AdminService.toggleUserActiveStatus(targetUser.id, nextState);
+        if (res.success) {
+          setTargetUser((prev) => (prev ? { ...prev, is_active: nextState } : null));
+        } else {
+          showAlert('Erreur', res.error || 'Erreur lors de la modification.');
+        }
+      },
+    });
   };
 
   if (loading) {

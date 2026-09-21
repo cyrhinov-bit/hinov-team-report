@@ -11,6 +11,7 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { COLORS } from '@/constants/colors';
+import { confirmAction } from '@/utils/alert';
 import { ActivitiesService } from '@/services/activities';
 import { DaySection } from '@/components/report/DaySection';
 import { Activity } from '@/types';
@@ -49,23 +50,18 @@ export default function ActivitiesListScreen() {
   };
 
   const handleDelete = (activityId: string) => {
-    Alert.alert(
-      'Supprimer l’activité',
-      'Êtes-vous sûr de vouloir supprimer cette tâche ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            const res = await ActivitiesService.deleteActivity(activityId);
-            if (res.success) {
-              setActivities((prev) => prev.filter((a) => a.id !== activityId));
-            }
-          },
-        },
-      ]
-    );
+    confirmAction({
+      title: 'Supprimer l’activité',
+      message: 'Êtes-vous sûr de vouloir supprimer cette tâche ?',
+      confirmText: 'Supprimer',
+      destructive: true,
+      onConfirm: async () => {
+        const res = await ActivitiesService.deleteActivity(activityId);
+        if (res.success) {
+          setActivities((prev) => prev.filter((a) => a.id !== activityId));
+        }
+      },
+    });
   };
 
   const handleEdit = (activity: Activity) => {

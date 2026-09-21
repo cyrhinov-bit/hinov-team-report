@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { PasswordStrengthMeter } from '@/components/ui/PasswordStrengthMeter';
 import { evaluatePasswordStrength } from '@/utils/validation';
+import { showAlert } from '@/utils/alert';
 import { Lock, ShieldCheck } from 'lucide-react-native';
 
 export default function SecurityScreen() {
@@ -50,10 +51,10 @@ export default function SecurityScreen() {
     setLoading(false);
 
     if (res.success) {
-      Alert.alert(
+      showAlert(
         'Succès',
         'Votre mot de passe a été modifié avec succès.',
-        [{ text: 'OK', onPress: () => router.back() }]
+        () => router.back()
       );
     } else {
       setErrorMsg(res.error || 'Erreur lors de la modification du mot de passe.');

@@ -18,6 +18,7 @@ import { AdminService } from '@/services/admin';
 import { ReportsService } from '@/services/reports';
 import { getWeekNumber } from '@/utils/date';
 import { UserProfile, WeeklyReport } from '@/types';
+import { confirmAction, showAlert } from '@/utils/alert';
 import {
   Users,
   FileCheck2,
@@ -31,7 +32,7 @@ import {
   BellRing,
 } from 'lucide-react-native';
 
-export default function AdminDashboard() {
+export default function AdminDashboardScreen() {
   const { user } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [reports, setReports] = useState<WeeklyReport[]>([]);
@@ -39,29 +40,30 @@ export default function AdminDashboard() {
 
   const { week, year } = getWeekNumber();
 
-  const loadAdminData = async () => {
-    const allUsers = await AdminService.getAllUsers();
+  const loadData = async () => {
+    const [allUsers, allReports] = await Promise.all([
+      AdminService.getAllUsers(),
+      ReportsService.getAllReportsForAdmin(week, year),
+    ]);
     setUsers(allUsers);
-
-    const weekReports = await ReportsService.getAllReportsForAdmin(week, year);
-    setReports(weekReports);
+    setReports(allReports);
   };
 
   useFocusEffect(
     useCallback(() => {
-      loadAdminData();
-    }, [user])
+      loadData();
+    }, [week, year])
   );
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadAdminData();
+    await loadData();
     setRefreshing(false);
   };
 
-  // KPI Calculations
+  // Metrics calculation
   const activeCollaborators = users.filter(
-    (u) => u.is_active && u.role === 'collaborateur'
+    (u) => u.is_active && u.role !== 'super_admin'
   );
   const totalCount = activeCollaborators.length || 1;
 
@@ -73,22 +75,17 @@ export default function AdminDashboard() {
   const missingCount = Math.max(0, totalCount - submittedCount - draftCount);
 
   const handleRemindTeam = () => {
-    Alert.alert(
-      'Relance des Collaborateurs',
-      `Un rappel par notification sera envoyé aux ${missingCount + draftCount} collaborateur(s) n'ayant pas encore soumis leur rapport de la Semaine ${week}.`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Envoyer le rappel',
-          onPress: () => {
-            Alert.alert(
-              'Rappels envoyés',
-              'Les collaborateurs concernés ont été notifiés avec succès.'
-            );
-          },
-        },
-      ]
-    );
+    confirmAction({
+      title: 'Relance des Collaborateurs',
+      message: `Un rappel par notification sera envoyé aux ${missingCount + draftCount} collaborateur(s) n'ayant pas encore soumis leur rapport de la Semaine ${week}.`,
+      confirmText: 'Envoyer le rappel',
+      onConfirm: () => {
+        showAlert(
+          'Rappels envoyés',
+          'Les collaborateurs concernés ont été notifiés avec succès.'
+        );
+      },
+    });
   };
 
   return (
