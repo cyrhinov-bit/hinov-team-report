@@ -1,12 +1,76 @@
 import { app, BrowserWindow, ipcMain, dialog, shell, Notification, Menu } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as http from 'http';
 
-const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+const isDev = process.env.NODE_ENV === 'development';
 
 let mainWindow: BrowserWindow | null = null;
+let prodServer: http.Server | null = null;
 
-function createWindow(): void {
+// MIME types for static assets
+const MIME_TYPES: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.mjs': 'application/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.otf': 'font/otf',
+  '.wasm': 'application/wasm',
+};
+
+function startStaticServer(distDir: string): Promise<number> {
+  return new Promise((resolve) => {
+    prodServer = http.createServer((req, res) => {
+      try {
+        const urlPath = decodeURI(req.url?.split('?')[0] || '/');
+        let filePath = path.join(distDir, urlPath);
+
+        // If file doesn't exist or is a directory, fallback to index.html for SPA routing
+        if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+          filePath = path.join(distDir, 'index.html');
+        }
+
+        const ext = path.extname(filePath).toLowerCase();
+        const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+
+        fs.readFile(filePath, (err, data) => {
+          if (err) {
+            res.writeHead(404, { 'Content-Type': 'text/plain' });
+            res.end('File not found');
+            return;
+          }
+          res.writeHead(200, {
+            'Content-Type': contentType,
+            'Access-Control-Allow-Origin': '*',
+          });
+          res.end(data);
+        });
+      } catch (err: any) {
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end(err?.message || 'Server error');
+      }
+    });
+
+    // Listen on dynamic available port on localhost
+    prodServer.listen(0, '127.0.0.1', () => {
+      const addr = prodServer?.address();
+      const port = typeof addr === 'object' && addr ? addr.port : 3000;
+      resolve(port);
+    });
+  });
+}
+
+async function createWindow(): Promise<void> {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 850,
@@ -20,25 +84,28 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      webSecurity: true,
     },
   });
 
-  // Custom application menu
   setupApplicationMenu();
 
-  // Load URL or static production build
-  if (isDev && process.env.ELECTRON_START_URL) {
-    mainWindow.loadURL(process.env.ELECTRON_START_URL);
+  if (isDev) {
+    const devUrl = process.env.ELECTRON_START_URL || 'http://localhost:8081';
+    await loadWithRetry(mainWindow, devUrl, 10);
   } else {
+    // Find dist directory
     const candidates = [
-      path.join(__dirname, '../../dist/index.html'),
-      path.join(__dirname, '../dist/index.html'),
-      path.join(app.getAppPath(), 'dist/index.html'),
-      path.join(process.cwd(), 'dist/index.html'),
+      path.join(__dirname, '../../dist'),
+      path.join(__dirname, '../dist'),
+      path.join(app.getAppPath(), 'dist'),
+      path.join(process.cwd(), 'dist'),
     ];
-    const foundPath = candidates.find((p) => fs.existsSync(p));
-    if (foundPath) {
-      mainWindow.loadFile(foundPath);
+    const foundDist = candidates.find((dir) => fs.existsSync(path.join(dir, 'index.html')));
+
+    if (foundDist) {
+      const port = await startStaticServer(foundDist);
+      mainWindow.loadURL(`http://127.0.0.1:${port}`);
     } else {
       mainWindow.loadURL('http://localhost:8081');
     }
@@ -62,6 +129,26 @@ function createWindow(): void {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+  });
+}
+
+function loadWithRetry(win: BrowserWindow, url: string, retries = 5): Promise<void> {
+  return new Promise((resolve) => {
+    let attempts = 0;
+
+    const tryLoad = () => {
+      attempts++;
+      win.loadURL(url).then(resolve).catch((err) => {
+        if (attempts < retries) {
+          setTimeout(tryLoad, 1000);
+        } else {
+          console.error(`Failed to connect to dev server ${url} after ${retries} attempts:`, err);
+          resolve();
+        }
+      });
+    };
+
+    tryLoad();
   });
 }
 
@@ -179,8 +266,8 @@ ipcMain.on('open-external', (_event, url: string) => {
 });
 
 // App lifecycle
-app.whenReady().then(() => {
-  createWindow();
+app.whenReady().then(async () => {
+  await createWindow();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -190,8 +277,10 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  if (prodServer) {
+    prodServer.close();
+  }
   if (process.platform !== 'darwin') {
     app.quit();
   }
 });
-
