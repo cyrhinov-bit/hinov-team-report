@@ -78,7 +78,7 @@ async function createWindow(): Promise<void> {
     minHeight: 680,
     title: 'Hinov Team Report (HTR)',
     backgroundColor: '#0B2240',
-    show: false,
+    show: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -89,6 +89,9 @@ async function createWindow(): Promise<void> {
   });
 
   setupApplicationMenu();
+
+  mainWindow.show();
+  mainWindow.focus();
 
   if (isDev) {
     const devUrl = process.env.ELECTRON_START_URL || 'http://localhost:8081';
@@ -111,12 +114,9 @@ async function createWindow(): Promise<void> {
     }
   }
 
-  mainWindow.once('ready-to-show', () => {
-    if (mainWindow) {
-      mainWindow.show();
-      mainWindow.focus();
-    }
-  });
+  // Ensure window is shown after content loads
+  mainWindow.show();
+  mainWindow.focus();
 
   // External link security
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {

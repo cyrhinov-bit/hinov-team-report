@@ -12,7 +12,7 @@
     "web": "expo start --web",
     "lint": "tsc --noEmit",
     "electron:compile": "tsc -p electron/tsconfig.json",
-    "electron:dev": "concurrently -k -s first \"cross-env CI=1 npx expo start --web --port 8081\" \"wait-on tcp:8081 && npm run electron:compile && cross-env NODE_ENV=development electron electron/dist/main.js\"",
+    "electron:dev": "npm run electron:compile && concurrently -k -s first \"cross-env CI=1 npx expo start --web --port 8081\" \"wait-on http://127.0.0.1:8081 && cross-env NODE_ENV=development electron electron/dist/main.js\"",
     "electron:build:web": "npx expo export -p web",
     "electron:build:exe": "npm run electron:compile && npm run electron:build:web && electron-builder --win",
     "electron:dist": "npm run electron:compile && npm run electron:build:web && electron-builder"
