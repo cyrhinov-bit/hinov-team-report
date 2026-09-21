@@ -1,86 +1,102 @@
-# HINOV Team Report (HTR)
+# HINOV TEAM REPORT (HTR) 📱🚀
 
-Application de suivi des activités hebdomadaires et de génération de rapports pour les équipes de **HINOV Group**, avec assistance IA (Google Gemini) et backend sécurisé (PostgreSQL / Supabase).
+Application mobile professionnelle complète conçue pour digitaliser, simplifier et automatiser la production des rapports hebdomadaires d'activité pour les collaborateurs et la direction de **HINOV Group**.
 
 ---
 
-## 🚀 Démarrage rapide
+## 🌟 Fonctionnalités Principales
 
-### Prérequis
-- **Node.js** (>= 20)
-- **pnpm** (>= 9)
-- Une instance PostgreSQL / Supabase
+### 👤 Espace Collaborateur (Mon Espace)
+- **Dashboard personnel** : Visualisation de la progression de la semaine (Lundi à Vendredi), compteur des activités du jour et statut du rapport hebdomadaire.
+- **Gestion des Activités Quotidiennes** : Ajout, édition, suppression et catégorisation des tâches journalières.
+- **Rapport Hebdomadaire Automatisé** :
+  - Détection automatique du numéro de semaine et de la période (Lundi-Vendredi).
+  - Organisation stricte et étanche des activités par jour.
+  - Section dédiée aux **Difficultés rencontrées**.
+  - Section dédiée aux **Perspectives & Priorités de la semaine suivante**.
+- **Amélioration avec Google Gemini AI ✨** : Reformulation dynamique, clarté et professionnalisation corporate automatique tout en respectant la vérité factuelle.
+- **Génération & Prévisualisation PDF** : Rendu A4 haute résolution corporate HINOV avec intégration automatique de la photo de profil.
+- **Envoi Automatique au Directeur** : Intégration Microsoft Graph API pour transmission directe par email vers l'adresse Outlook de la Direction.
+- **Protection & Verrouillage** : Une fois le rapport validé et soumis, les activités sont verrouillées pour garantir l'intégrité de l'historique.
+- **Historique & Archives** : Consultation et téléchargement des anciens rapports PDF à tout moment.
+- **Profil & Sécurité** :
+  - Prise de photo ou sélection galerie avec compression automatique.
+  - Modification sécurisée du mot de passe avec indicateur de force (🔴/🟠/🟢).
+  - Configuration de clé API Gemini personnelle (optionnelle).
 
-### Installation des dépendances
+---
+
+### 👔 Espace Direction & Administration
+- **Double Espace pour le Directeur** : Espace collaborateur personnel (son propre rapport est archivé mais non auto-envoyé à lui-même) + Espace de supervision.
+- **Supervision & KPIs de l'équipe** :
+  - Suivi en temps réel : Reçus (vert), Brouillons (orange), Non soumis (rouge).
+  - Consultation, visualisation et téléchargement de tous les PDF de l'équipe.
+  - Relance groupée des collaborateurs en retard par notification.
+- **Annuaire & Gestion des Utilisateurs** :
+  - Création de comptes collaborateurs et administrateurs.
+  - Attribution des rôles (`Collaborateur`, `Directeur/Admin`, `Super Admin`).
+  - Activation et désactivation instantanée des accès.
+  - **Mots de Passe Temporaires Sécurisés** : Génération ou définition manuelle d'un mot de passe temporaire affiché **UNE SEULE FOIS** pour communication sécurisée.
+  - **Changement obligatoire de mot de passe** (`must_change_password`) à la première connexion.
+- **Paramètres Entreprise** : Configuration des adresses de réception Outlook et paramètres de rappel.
+
+---
+
+## 🛠 Stack Technique
+
+- **Frontend Mobile** : React Native, Expo SDK 51, TypeScript, Expo Router (Navigation par fichiers)
+- **UI / Design** : Palette corporate HINOV Group (Bleu nuit `#0B2240`, Ambre `#F59E0B`, Vert `#10B981`, Violet IA `#8B5CF6`), Lucide Icons
+- **Backend & Données** : Supabase (PostgreSQL, Supabase Auth, Row Level Security - RLS, Supabase Storage)
+- **Edge Functions (Serverless Deno)** :
+  - `admin-create-user` : Création de compte sécurisée via Auth Admin
+  - `admin-reset-password` : Réinitialisation et génération de mot de passe temporaire
+  - `generate-report-pdf` : Rendu du template corporate HTML/PDF
+  - `send-report-email` : Envoi du rapport et pièce jointe via **Microsoft Graph API**
+  - `ai-improve-report` : Optimisation du contenu via **Google Gemini API**
+- **PDF & Partage** : Expo Print & Expo Sharing
+
+---
+
+## 🚀 Démarrage & Installation
+
+### 1. Cloner et installer les dépendances
 ```bash
-pnpm install
+cd "hinov team report"
+npm install
 ```
 
----
+### 2. Configuration des Variables d'Environnement
+Créez ou adaptez le fichier `.env` à la racine :
+```env
+EXPO_PUBLIC_SUPABASE_URL=https://votre-projet.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=votre-cle-anon
+EXPO_PUBLIC_GEMINI_API_KEY=votre-cle-gemini-optionnelle
+```
 
-## 💻 Développement
+### 3. Déploiement de la Base de Données Supabase
+Exécutez dans l'éditeur SQL de votre console Supabase :
+1. `supabase/schema.sql` (Structure des tables, ENUMs, triggers)
+2. `supabase/rls.sql` (Politiques de sécurité Row Level Security)
+3. `supabase/seed.sql` (Paramètres par défaut)
 
-### 1. Application Mobile & Web (Expo / React Native)
+### 4. Lancer l'Application
 ```bash
-# Lancer l'application Expo (mobile / web)
-pnpm --filter @workspace/hinov-team-report run dev
+# Lancer avec Expo
+npm start
 
-# Ou directement pour une plateforme :
-pnpm --filter @workspace/hinov-team-report run web
-pnpm --filter @workspace/hinov-team-report run android
-pnpm --filter @workspace/hinov-team-report run ios
-```
+# Lancer sur le web
+npm run web
 
-### 2. Serveur d'API Backend (Express 5)
-```bash
-pnpm --filter @workspace/api-server run dev
-```
-
-### 3. Bac à sable de maquettes UI (Vite)
-```bash
-pnpm --filter @workspace/mockup-sandbox run dev
+# Lancer sur Android / iOS
+npm run android
+npm run ios
 ```
 
 ---
 
-## ⚙️ Variables d'environnement
-
-### Serveur d'API (`artifacts/api-server`)
-Créer un fichier `.env` ou définir les variables suivantes :
-- `PORT` : Port du serveur API (défaut `5000` ou `3000`).
-- `SUPABASE_URL` : URL de votre instance Supabase (ex: `https://xyz.supabase.co` ou `http://127.0.0.1:54321`).
-- `SUPABASE_ANON_KEY` : Clé publique anonyme Supabase.
-- `SESSION_SECRET` : Clé secrète utilisée pour le chiffrement symétrique AES-256 des clés API Gemini.
-- `DATABASE_URL` : Chaîne de connexion PostgreSQL directe (pour Drizzle ORM).
-
-### Application Frontend (`artifacts/hinov-team-report`)
-- `EXPO_PUBLIC_API_URL` : URL du serveur d'API (défaut `http://localhost:5000`).
-
----
-
-## 🏗️ Structure du Projet
-
-```
-HINOV-Team-Report/
-├── artifacts/
-│   ├── hinov-team-report/     # Application React Native / Expo Router v57
-│   ├── api-server/            # Backend API Express 5 + Proxy Supabase & Gemini
-│   └── mockup-sandbox/        # Bac à sable Vite + Tailwind
-├── lib/
-│   ├── api-client-react/      # Hooks React Query générés
-│   ├── api-spec/              # Spécification OpenAPI & config Orval
-│   ├── api-zod/               # Schémas de validation Zod
-│   └── db/                    # Schémas et migrations Drizzle ORM
-├── supabase/
-│   └── migrations/            # Schémas SQL et politiques RLS
-└── package.json / pnpm-workspace.yaml
-```
-
----
-
-## 🛠️ Commandes utiles
-
-- `pnpm run typecheck` — Vérification des types TypeScript sur l'ensemble du projet
-- `pnpm run build` — Compilation de tous les packages
-- `pnpm --filter @workspace/api-spec run codegen` — Régénération des clients API depuis la spec OpenAPI
+## 🔒 Sécurité et Bonnes Pratiques
+- Aucune clé sensible (`service_role`, `client_secret` Microsoft) n'est exposée dans le code mobile.
+- Les mots de passe existants ne sont jamais consultables ni affichés en clair.
+- Les mots de passe temporaires créés par les administrateurs ne sont affichés qu'une seule fois.
+- RLS strict garantissant l'isolation des données entre collaborateurs.
 

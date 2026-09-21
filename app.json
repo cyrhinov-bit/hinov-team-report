@@ -1,5 +1,27 @@
 {
-  "android": {
-    "package": "com.cyrhinov.workspace"
+  "expo": {
+    "name": "Hinov Team Report",
+    "slug": "hinov-team-report",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "htr",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.hinovgroup.htr"
+    },
+    "android": {
+      "package": "com.hinovgroup.htr"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
   }
 }
