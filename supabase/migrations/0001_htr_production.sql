@@ -6,6 +6,7 @@ create table if not exists public.profiles (
   role text not null default 'COLLABORATEUR',
   department text not null default '',
   avatar_url text,
+  custom_gemini_api_key text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

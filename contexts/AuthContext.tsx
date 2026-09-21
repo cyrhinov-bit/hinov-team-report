@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserProfile } from '@/types';
 import { AuthService } from '@/services/auth';
+import { supabase, isSupabaseConfigured } from '@/services/supabase';
 import { router } from 'expo-router';
 
 interface AuthContextType {
@@ -24,7 +25,25 @@ export const AuthProvider: React.FC<{ children?: React.ReactNode }> = ({ childre
     try {
       setIsLoading(true);
       const stored = await AuthService.getStoredProfile();
-      setUser(stored);
+      if (stored) {
+        setUser(stored);
+      }
+
+      if (isSupabaseConfigured) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+
+          if (profile) {
+            setUser(profile);
+            await AuthService.setStoredProfile(profile);
+          }
+        }
+      }
     } catch (err) {
       console.error('Session loading error:', err);
     } finally {
@@ -97,6 +116,24 @@ export const AuthProvider: React.FC<{ children?: React.ReactNode }> = ({ childre
   };
 
   const refreshProfile = async () => {
+    if (isSupabaseConfigured && user) {
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (profile) {
+          setUser(profile);
+          await AuthService.setStoredProfile(profile);
+          return;
+        }
+      } catch (err) {
+        console.warn('Could not refresh profile from Supabase:', err);
+      }
+    }
+
     const stored = await AuthService.getStoredProfile();
     if (stored) setUser(stored);
   };
