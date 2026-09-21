@@ -48,7 +48,7 @@ CREATE INDEX IF NOT EXISTS idx_profiles_email ON public.profiles(email);
 
 -- 4. ACTIVITIES TABLE
 CREATE TABLE IF NOT EXISTS public.activities (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     date DATE NOT NULL,
     day_of_week SMALLINT NOT NULL CHECK (day_of_week BETWEEN 1 AND 7),
@@ -66,7 +66,7 @@ CREATE INDEX IF NOT EXISTS idx_activities_user_id ON public.activities(user_id);
 
 -- 5. REPORTS TABLE
 CREATE TABLE IF NOT EXISTS public.reports (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     week_number INT NOT NULL CHECK (week_number BETWEEN 1 AND 53),
     year INT NOT NULL,
@@ -110,7 +110,7 @@ ON CONFLICT (id) DO NOTHING;
 
 -- 7. AUDIT LOGS TABLE
 CREATE TABLE IF NOT EXISTS public.audit_logs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     actor_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     action TEXT NOT NULL,
     target_user_id UUID,
