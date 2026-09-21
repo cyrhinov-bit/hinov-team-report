@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   Alert,
   TouchableOpacity,
+  Image,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,7 +16,8 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { ReportsService } from '@/services/reports';
 import { PdfService } from '@/services/pdf';
-import { WeeklyReport, Activity } from '@/types';
+import { SettingsService } from '@/services/settings';
+import { WeeklyReport, Activity, CompanySettings } from '@/types';
 import { FRENCH_DAYS } from '@/utils/date';
 import {
   Share2,
@@ -36,6 +38,11 @@ export default function ReportPreviewScreen() {
   }>();
 
   const [submitting, setSubmitting] = useState(false);
+  const [settings, setSettings] = useState<CompanySettings | null>(null);
+
+  useEffect(() => {
+    SettingsService.getSettings().then(setSettings).catch(console.error);
+  }, []);
 
   let report: WeeklyReport | null = null;
   let activitiesByDay: Record<number, Activity[]> = { 1: [], 2: [], 3: [], 4: [], 5: [] };
@@ -60,7 +67,7 @@ export default function ReportPreviewScreen() {
 
   const handleSharePdf = async () => {
     try {
-      await PdfService.sharePdf(report!, user, activitiesByDay);
+      await PdfService.sharePdf(report!, user, activitiesByDay, settings || undefined);
     } catch (err: any) {
       Alert.alert('Erreur', 'Impossible de générer le fichier PDF pour le partage.');
     }
@@ -68,7 +75,7 @@ export default function ReportPreviewScreen() {
 
   const handlePrint = async () => {
     try {
-      await PdfService.printReport(report!, user, activitiesByDay);
+      await PdfService.printReport(report!, user, activitiesByDay, settings || undefined);
     } catch (err: any) {
       Alert.alert('Erreur', 'Impossible de lancer l’impression.');
     }
@@ -88,7 +95,7 @@ export default function ReportPreviewScreen() {
             setSubmitting(true);
             try {
               // Generate PDF base64 for email attachment
-              const pdfFile = await PdfService.generatePdfFile(report!, user, activitiesByDay);
+              const pdfFile = await PdfService.generatePdfFile(report!, user, activitiesByDay, settings || undefined);
               const res = await ReportsService.submitReport(report!, user, pdfFile.base64);
 
               setSubmitting(false);
@@ -131,10 +138,21 @@ export default function ReportPreviewScreen() {
       {/* Simulated A4 PDF Document Sheet */}
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.paperSheet}>
+          {/* Full Width Company Header Banner if uploaded */}
+          {Boolean(settings?.pdf_header_image) && (
+            <View style={styles.sheetHeaderBannerWrapper}>
+              <Image
+                source={{ uri: settings!.pdf_header_image! }}
+                style={styles.sheetHeaderBanner}
+                resizeMode="contain"
+              />
+            </View>
+          )}
+
           {/* Document Header */}
           <View style={styles.docHeader}>
             <View>
-              <Text style={styles.companyName}>HINOV GROUP</Text>
+              <Text style={styles.companyName}>{settings?.company_name || 'HINOV GROUP'}</Text>
               <Text style={styles.docType}>Rapport Hebdomadaire d'Activité</Text>
             </View>
             <View style={styles.weekBadge}>
@@ -225,7 +243,7 @@ export default function ReportPreviewScreen() {
           {/* Footer Note */}
           <View style={styles.docFooter}>
             <Text style={styles.docFooterText}>
-              Généré par Hinov Team Report (HTR) • Usage Interne Exclusif
+              {settings?.pdf_footer_text || 'Généré par Hinov Team Report (HTR) • Document Confidentiel'}
             </Text>
           </View>
         </View>
@@ -289,6 +307,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 4,
+  },
+  sheetHeaderBannerWrapper: {
+    width: '100%',
+    marginBottom: 12,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  sheetHeaderBanner: {
+    width: '100%',
+    height: 75,
+    borderRadius: 6,
+    backgroundColor: '#F8FAFC',
   },
   docHeader: {
     flexDirection: 'row',

@@ -72,6 +72,8 @@ export interface CompanySettings {
   id: string;
   company_name: string;
   logo_url?: string | null;
+  pdf_header_image?: string | null;
+  pdf_footer_text?: string | null;
   director_email: string;
   superadmin_report_recipient?: string | null;
   reminder_cron?: string;

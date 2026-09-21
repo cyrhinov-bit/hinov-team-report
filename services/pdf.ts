@@ -1,13 +1,14 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { WeeklyReport, UserProfile, Activity } from '@/types';
+import { WeeklyReport, UserProfile, Activity, CompanySettings } from '@/types';
+import { SettingsService } from './settings';
 
 export const PdfService = {
   buildHtmlReport(
     report: WeeklyReport,
     user: UserProfile,
     activitiesByDay: Record<number, Activity[]>,
-    companyName = 'HINOV Group'
+    companySettings?: Partial<CompanySettings>
   ): string {
     const dayLabels = [
       { key: 1, name: 'LUNDI' },
@@ -16,6 +17,10 @@ export const PdfService = {
       { key: 4, name: 'JEUDI' },
       { key: 5, name: 'VENDREDI' },
     ];
+
+    const companyName = companySettings?.company_name || 'HINOV Group';
+    const headerImageUrl = companySettings?.pdf_header_image;
+    const footerText = companySettings?.pdf_footer_text || 'HINOV Team Report • Document Confidentiel';
 
     const avatarUrl =
       user.avatar_url ||
@@ -28,24 +33,36 @@ export const PdfService = {
         <meta charset="utf-8">
         <title>Rapport Hebdomadaire - ${user.full_name}</title>
         <style>
-          @page { size: A4 portrait; margin: 12mm 15mm; }
+          @page { size: A4 portrait; margin: 10mm 12mm; }
           * { box-sizing: border-box; }
           body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             color: #0F172A;
             margin: 0;
             padding: 0;
-            font-size: 12.5px;
-            line-height: 1.5;
+            font-size: 12px;
+            line-height: 1.45;
             background: #FFFFFF;
+          }
+          .header-banner-wrapper {
+            width: 100%;
+            margin-bottom: 12px;
+            overflow: hidden;
+            border-radius: 4px;
+          }
+          .header-banner-img {
+            width: 100%;
+            max-height: 120px;
+            object-fit: contain;
+            display: block;
           }
           .header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             border-bottom: 2.5px solid #0B2240;
-            padding-bottom: 12px;
-            margin-bottom: 16px;
+            padding-bottom: 10px;
+            margin-bottom: 14px;
           }
           .brand-title {
             font-size: 22px;
@@ -195,6 +212,16 @@ export const PdfService = {
         </style>
       </head>
       <body>
+        ${
+          headerImageUrl
+            ? `
+          <div class="header-banner-wrapper">
+            <img src="${headerImageUrl}" class="header-banner-img" alt="En-tête ${companyName}" />
+          </div>
+        `
+            : ''
+        }
+
         <div class="header">
           <div>
             <div class="brand-title">${companyName}</div>
@@ -247,7 +274,11 @@ export const PdfService = {
                             : 'En attente'
                         }</span>
                       </div>
-                      ${a.description ? `<div class="act-desc">${a.description}</div>` : ''}
+                      ${
+                        a.description
+                          ? `<div class="act-desc">${a.description}</div>`
+                          : ''
+                      }
                     </div>
                   `
                       )
@@ -258,11 +289,11 @@ export const PdfService = {
           })
           .join('')}
 
-        <div class="section-heading">2. Difficultés Rencontrées</div>
+        <div class="section-heading">2. Difficultés & Points d'Attention</div>
         <div class="box-block">
           ${
             !report.difficulties || report.difficulties.length === 0
-              ? `<div style="color: #64748B; font-style: italic;">Aucune difficulté particulière signalée.</div>`
+              ? `<div style="color: #64748B; font-style: italic;">Aucune difficulté technique ou blocage majeur signalé cette semaine.</div>`
               : report.difficulties
                   .map(
                     (d) => `
@@ -295,8 +326,8 @@ export const PdfService = {
         </div>
 
         <div class="footer">
-          <span>Généré avec Hinov Team Report (HTR) • Document Confidentiel</span>
-          <span>Date : ${new Date().toLocaleDateString('fr-FR')}</span>
+          <span>${footerText}</span>
+          <span>Date d'édition : ${new Date().toLocaleDateString('fr-FR')}</span>
         </div>
       </body>
       </html>
@@ -306,9 +337,11 @@ export const PdfService = {
   async generatePdfFile(
     report: WeeklyReport,
     user: UserProfile,
-    activitiesByDay: Record<number, Activity[]>
+    activitiesByDay: Record<number, Activity[]>,
+    companySettings?: Partial<CompanySettings>
   ): Promise<{ uri: string; base64?: string }> {
-    const html = this.buildHtmlReport(report, user, activitiesByDay);
+    const settings = companySettings || await SettingsService.getSettings();
+    const html = this.buildHtmlReport(report, user, activitiesByDay, settings);
     const { uri, base64 } = await Print.printToFileAsync({
       html,
       base64: true,
@@ -319,9 +352,10 @@ export const PdfService = {
   async sharePdf(
     report: WeeklyReport,
     user: UserProfile,
-    activitiesByDay: Record<number, Activity[]>
+    activitiesByDay: Record<number, Activity[]>,
+    companySettings?: Partial<CompanySettings>
   ): Promise<void> {
-    const { uri } = await this.generatePdfFile(report, user, activitiesByDay);
+    const { uri } = await this.generatePdfFile(report, user, activitiesByDay, companySettings);
     if (await Sharing.isAvailableAsync()) {
       await Sharing.shareAsync(uri, {
         UTI: '.pdf',
@@ -334,10 +368,11 @@ export const PdfService = {
   async printReport(
     report: WeeklyReport,
     user: UserProfile,
-    activitiesByDay: Record<number, Activity[]>
+    activitiesByDay: Record<number, Activity[]>,
+    companySettings?: Partial<CompanySettings>
   ): Promise<void> {
-    const html = this.buildHtmlReport(report, user, activitiesByDay);
+    const settings = companySettings || await SettingsService.getSettings();
+    const html = this.buildHtmlReport(report, user, activitiesByDay, settings);
     await Print.printAsync({ html });
   },
 };
-
