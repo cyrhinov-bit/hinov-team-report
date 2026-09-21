@@ -182,6 +182,15 @@ export default function AdminUsersScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
+            style={[styles.filterPill, roleFilter === 'super_admin' && styles.filterPillActive]}
+            onPress={() => setRoleFilter('super_admin')}
+          >
+            <Text style={[styles.filterText, roleFilter === 'super_admin' && styles.filterTextActive]}>
+              Super Admin
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={[styles.filterPill, statusFilter === 'active' && styles.filterPillActive]}
             onPress={() => setStatusFilter(statusFilter === 'active' ? 'all' : 'active')}
           >

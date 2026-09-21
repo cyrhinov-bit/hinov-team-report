@@ -215,6 +215,58 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Admin Quick Menu (for Super Admin & Director) */}
+      {(user?.role === 'super_admin' || user?.role === 'directeur_admin') && (
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Espace Administration</Text>
+
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => router.push('/(admin)/users')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.menuIconBox, { backgroundColor: '#EFF6FF' }]}>
+              <Shield size={18} color={COLORS.primaryAccent} />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>Gestion des Utilisateurs</Text>
+              <Text style={styles.menuSub}>Créer, modifier les fonctions et gérer les accès</Text>
+            </View>
+            <ChevronRight size={18} color={COLORS.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => router.push('/(admin)/reports')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.menuIconBox, { backgroundColor: '#F0FDF4' }]}>
+              <Briefcase size={18} color={COLORS.success} />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>Supervision des Rapports</Text>
+              <Text style={styles.menuSub}>Consulter et télécharger les rapports d'équipe</Text>
+            </View>
+            <ChevronRight size={18} color={COLORS.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.menuItem, { borderBottomWidth: 0 }]}
+            onPress={() => router.push('/(admin)')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.menuIconBox, { backgroundColor: COLORS.aiLight }]}>
+              <Sparkles size={18} color={COLORS.ai} />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>Tableau de Bord Direction</Text>
+              <Text style={styles.menuSub}>Vue d'ensemble et relances</Text>
+            </View>
+            <ChevronRight size={18} color={COLORS.textMuted} />
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Logout Action */}
       <Button
         title="DÉCONNEXION"

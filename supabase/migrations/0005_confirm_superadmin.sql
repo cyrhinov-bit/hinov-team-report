@@ -17,3 +17,4 @@ SET
   is_active = true,
   must_change_password = false
 WHERE email = 'e.gnonskan@hinovgroup.com';
+

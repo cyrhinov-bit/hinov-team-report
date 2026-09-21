@@ -1,9 +1,14 @@
 import React from 'react';
-import { Tabs } from 'expo-router';
+import { Tabs, router } from 'expo-router';
+import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
+import { useAuth } from '@/contexts/AuthContext';
 import { COLORS } from '@/constants/colors';
-import { LayoutDashboard, CheckSquare, FileText, History, User } from 'lucide-react-native';
+import { LayoutDashboard, CheckSquare, FileText, History, User, Shield } from 'lucide-react-native';
 
 export default function CollaboratorLayout() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'super_admin' || user?.role === 'directeur_admin';
+
   return (
     <Tabs
       screenOptions={{
@@ -35,6 +40,17 @@ export default function CollaboratorLayout() {
         options={{
           title: 'Dashboard',
           headerTitle: 'Hinov Team Report',
+          headerRight: () =>
+            isAdmin ? (
+              <TouchableOpacity
+                style={styles.adminHeaderBtn}
+                onPress={() => router.push('/(admin)')}
+                activeOpacity={0.8}
+              >
+                <Shield size={14} color="#38BDF8" />
+                <Text style={styles.adminHeaderBtnText}>Admin</Text>
+              </TouchableOpacity>
+            ) : null,
           tabBarIcon: ({ color, size }) => (
             <LayoutDashboard size={size} color={color} />
           ),
@@ -83,4 +99,24 @@ export default function CollaboratorLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  adminHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    marginRight: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.4)',
+  },
+  adminHeaderBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+    marginLeft: 5,
+  },
+});
 
