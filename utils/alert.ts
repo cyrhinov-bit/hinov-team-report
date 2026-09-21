@@ -49,3 +49,4 @@ export const showAlert = (title: string, message: string, onOk?: () => void) => 
     Alert.alert(title, message, [{ text: 'OK', onPress: onOk }]);
   }
 };
+

@@ -355,13 +355,53 @@ export const PdfService = {
     activitiesByDay: Record<number, Activity[]>,
     companySettings?: Partial<CompanySettings>
   ): Promise<void> {
-    const { uri } = await this.generatePdfFile(report, user, activitiesByDay, companySettings);
+    const { uri, base64 } = await this.generatePdfFile(report, user, activitiesByDay, companySettings);
+    const cleanName = (user.full_name || 'Utilisateur').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const fileName = `Rapport_S${report.week_number}_${report.year}_${cleanName}.pdf`;
+
+    // 1. Electron Desktop native file save dialog
+    if (typeof window !== 'undefined' && (window as any).electronAPI?.savePdfDialog && base64) {
+      const res = await (window as any).electronAPI.savePdfDialog({
+        defaultFileName: fileName,
+        base64Data: base64,
+      });
+      if (res.success || res.canceled) {
+        return;
+      }
+    }
+
+    // 2. Mobile Sharing API (iOS / Android)
     if (await Sharing.isAvailableAsync()) {
       await Sharing.shareAsync(uri, {
         UTI: '.pdf',
         mimeType: 'application/pdf',
-        dialogTitle: `Rapport_S${report.week_number}_${user.full_name}`,
+        dialogTitle: fileName,
       });
+      return;
+    }
+
+    // 3. Web Browser Download fallback
+    if (typeof window !== 'undefined' && typeof document !== 'undefined' && base64) {
+      try {
+        const byteCharacters = atob(base64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'application/pdf' });
+        const blobUrl = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      } catch (e) {
+        console.error('Web download error:', e);
+      }
     }
   },
 
