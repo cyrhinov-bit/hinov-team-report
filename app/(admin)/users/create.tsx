@@ -19,6 +19,7 @@ import { TempPasswordModal } from '@/components/admin/TempPasswordModal';
 import { AdminService } from '@/services/admin';
 import { AppRole, UserProfile } from '@/types';
 import { isValidEmail } from '@/utils/validation';
+import { AVAILABLE_JOB_TITLES, AVAILABLE_DEPARTMENTS } from '@/constants/organization';
 import { UserPlus, Mail, Briefcase, Building, Shield } from 'lucide-react-native';
 
 export default function CreateUserScreen() {
@@ -123,17 +124,26 @@ export default function CreateUserScreen() {
 
           <Input
             label="Fonction / Intitulé du Poste *"
-            placeholder="Ex : Ingénieur Logiciel, Chef de Projet..."
+            placeholder="Sélectionnez ou saisissez la fonction..."
             value={jobTitle}
             onChangeText={setJobTitle}
             leftIcon={<Briefcase size={18} color={COLORS.textSecondary} />}
           />
           <View style={styles.suggestionsContainer}>
-            {['Ingénieur Logiciel', 'Chef de Projet', 'Consultant Cybersécurité', 'Responsable Commercial', 'Product Owner', 'Auditeur Financier'].map((func) => (
+            {AVAILABLE_JOB_TITLES.map((func) => (
               <TouchableOpacity
                 key={func}
                 style={[styles.suggestionChip, jobTitle === func && styles.suggestionChipActive]}
-                onPress={() => setJobTitle(func)}
+                onPress={() => {
+                  setJobTitle(func);
+                  if (!department) {
+                    if (func === 'Agent commercial') setDepartment('Commercial');
+                    else if (func === 'Responsable imprimerie') setDepartment('Imprimerie');
+                    else if (func === 'Responsable librairie et papeterie') setDepartment('Librairie et Papeterie');
+                    else if (func === 'Responsable réseau et câblage') setDepartment('Réseau et Câblage');
+                    else if (func === 'Responsable développement') setDepartment('Développement & Informatique');
+                  }
+                }}
               >
                 <Text style={[styles.suggestionChipText, jobTitle === func && styles.suggestionChipTextActive]}>
                   {func}
@@ -144,13 +154,13 @@ export default function CreateUserScreen() {
 
           <Input
             label="Département / Direction"
-            placeholder="Ex : Pôle Ingénierie & Solutions"
+            placeholder="Sélectionnez ou saisissez le département..."
             value={department}
             onChangeText={setDepartment}
             leftIcon={<Building size={18} color={COLORS.textSecondary} />}
           />
           <View style={styles.suggestionsContainer}>
-            {['Pôle Ingénierie & Tech', 'Commercial & Marketing', 'Direction Générale', 'Finance & RH', 'Support & Exploitation'].map((dep) => (
+            {AVAILABLE_DEPARTMENTS.map((dep) => (
               <TouchableOpacity
                 key={dep}
                 style={[styles.suggestionChip, department === dep && styles.suggestionChipActive]}

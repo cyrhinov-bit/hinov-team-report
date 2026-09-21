@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/Input';
 import { TempPasswordModal } from '@/components/admin/TempPasswordModal';
 import { AdminService } from '@/services/admin';
 import { UserProfile, AppRole } from '@/types';
+import { AVAILABLE_JOB_TITLES, AVAILABLE_DEPARTMENTS } from '@/constants/organization';
 import {
   KeyRound,
   Power,
@@ -346,17 +347,26 @@ export default function UserDetailScreen() {
 
               <Input
                 label="Fonction / Intitulé du Poste"
-                placeholder="Ex : Ingénieur Logiciel, Chef de Projet..."
+                placeholder="Sélectionnez ou saisissez la fonction..."
                 value={editJobTitle}
                 onChangeText={setEditJobTitle}
                 leftIcon={<Briefcase size={18} color={COLORS.textSecondary} />}
               />
               <View style={styles.suggestionsContainer}>
-                {['Ingénieur Logiciel', 'Chef de Projet', 'Consultant Cybersécurité', 'Responsable Commercial', 'Product Owner', 'Auditeur Financier'].map((func) => (
+                {AVAILABLE_JOB_TITLES.map((func) => (
                   <TouchableOpacity
                     key={func}
                     style={[styles.suggestionChip, editJobTitle === func && styles.suggestionChipActive]}
-                    onPress={() => setEditJobTitle(func)}
+                    onPress={() => {
+                      setEditJobTitle(func);
+                      if (!editDepartment) {
+                        if (func === 'Agent commercial') setEditDepartment('Commercial');
+                        else if (func === 'Responsable imprimerie') setEditDepartment('Imprimerie');
+                        else if (func === 'Responsable librairie et papeterie') setEditDepartment('Librairie et Papeterie');
+                        else if (func === 'Responsable réseau et câblage') setEditDepartment('Réseau et Câblage');
+                        else if (func === 'Responsable développement') setEditDepartment('Développement & Informatique');
+                      }
+                    }}
                   >
                     <Text style={[styles.suggestionChipText, editJobTitle === func && styles.suggestionChipTextActive]}>
                       {func}
@@ -367,13 +377,13 @@ export default function UserDetailScreen() {
 
               <Input
                 label="Département / Direction"
-                placeholder="Ex : Pôle Ingénierie & Solutions"
+                placeholder="Sélectionnez ou saisissez le département..."
                 value={editDepartment}
                 onChangeText={setEditDepartment}
                 leftIcon={<Building size={18} color={COLORS.textSecondary} />}
               />
               <View style={styles.suggestionsContainer}>
-                {['Pôle Ingénierie & Tech', 'Commercial & Marketing', 'Direction Générale', 'Finance & RH', 'Support & Exploitation'].map((dep) => (
+                {AVAILABLE_DEPARTMENTS.map((dep) => (
                   <TouchableOpacity
                     key={dep}
                     style={[styles.suggestionChip, editDepartment === dep && styles.suggestionChipActive]}
