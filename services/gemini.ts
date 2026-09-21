@@ -9,6 +9,33 @@ export interface GeminiEnhancementResult {
 }
 
 export const GeminiService = {
+  async testApiKey(apiKey: string): Promise<{ success: boolean; error?: string }> {
+    if (!apiKey || !apiKey.trim()) {
+      return { success: false, error: 'Veuillez saisir une clé API Gemini.' };
+    }
+
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: 'Test de connexion. Réponds simplement: OK' }] }],
+          generationConfig: { maxOutputTokens: 10 },
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.text();
+        return { success: false, error: `Clé API invalide (${response.status}): ${err}` };
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Impossible de contacter l’API Gemini' };
+    }
+  },
+
   async improveReport(
     activitiesByDay: Record<number, Activity[]>,
     difficulties: string[],
@@ -95,9 +122,18 @@ Perspectives : ${JSON.stringify(perspectives)}
 
       const json = await response.json();
       const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-      const parsed: GeminiEnhancementResult = JSON.parse(
-        rawText.replace(/```json/g, '').replace(/```/g, '').trim()
-      );
+      
+      let cleanText = rawText.trim();
+      if (cleanText.startsWith('```json')) {
+        cleanText = cleanText.substring(7);
+      } else if (cleanText.startsWith('```')) {
+        cleanText = cleanText.substring(3);
+      }
+      if (cleanText.endsWith('```')) {
+        cleanText = cleanText.substring(0, cleanText.length - 3);
+      }
+
+      const parsed: GeminiEnhancementResult = JSON.parse(cleanText.trim());
 
       return { success: true, result: parsed };
     } catch (err: any) {

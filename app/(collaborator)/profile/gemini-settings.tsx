@@ -13,12 +13,30 @@ import { useAuth } from '@/contexts/AuthContext';
 import { COLORS } from '@/constants/colors';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { Sparkles, Key, Info } from 'lucide-react-native';
+import { Sparkles, Key, Info, CheckCircle2 } from 'lucide-react-native';
+import { GeminiService } from '@/services/gemini';
 
 export default function GeminiSettingsScreen() {
   const { user, updateProfile } = useAuth();
   const [apiKey, setApiKey] = useState(user?.custom_gemini_api_key || '');
   const [loading, setLoading] = useState(false);
+  const [testing, setTesting] = useState(false);
+
+  const handleTestKey = async () => {
+    if (!apiKey.trim()) {
+      Alert.alert('Clé requise', 'Veuillez saisir votre clé API avant de tester.');
+      return;
+    }
+    setTesting(true);
+    const res = await GeminiService.testApiKey(apiKey.trim());
+    setTesting(false);
+
+    if (res.success) {
+      Alert.alert('Connexion Réussie !', 'Votre clé API Gemini est valide et prête à l’emploi.');
+    } else {
+      Alert.alert('Erreur de validation', res.error || 'La clé API semble invalide.');
+    }
+  };
 
   const handleSave = async () => {
     setLoading(true);
@@ -69,6 +87,17 @@ export default function GeminiSettingsScreen() {
             leftIcon={<Key size={18} color={COLORS.textSecondary} />}
             isPassword
           />
+
+          {apiKey.trim().length > 0 && (
+            <Button
+              title="TESTER LA CONNEXION GEMINI"
+              onPress={handleTestKey}
+              loading={testing}
+              variant="outline"
+              size="md"
+              style={{ width: '100%', marginTop: 6, marginBottom: 4 }}
+            />
+          )}
 
           <Button
             title="ENREGISTRER LA CONFIGURATION"
