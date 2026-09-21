@@ -28,8 +28,12 @@ export const TempPasswordModal: React.FC<TempPasswordModalProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
 
-  const handleCopy = () => {
-    // In React Native Expo, clipboard can be used
+  const handleCopy = async () => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(temporaryPassword);
+      }
+    } catch {}
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
