@@ -4,79 +4,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const USERS_STORAGE_KEY = '@htr_admin_users';
 
-const DEFAULT_ADMIN_USERS: UserProfile[] = [
-  {
-    id: 'demo-collab-1',
-    full_name: 'Jean-Marc Kouassi',
-    email: 'jm.kouassi@hinovgroup.com',
-    job_title: 'Ingénieur Solutions Cloud',
-    department: 'Direction Technique',
-    role: 'collaborateur',
-    is_active: true,
-    must_change_password: false,
-    avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
-    last_login_at: new Date().toISOString(),
-    created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
-  },
-  {
-    id: 'demo-collab-2',
-    full_name: 'Amina Diallo',
-    email: 'amina.diallo@hinovgroup.com',
-    job_title: 'Product Owner & UX Lead',
-    department: 'Digital & Innovation',
-    role: 'collaborateur',
-    is_active: true,
-    must_change_password: true,
-    avatar_url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&auto=format&fit=crop&q=80',
-    last_login_at: new Date().toISOString(),
-    created_at: new Date(Date.now() - 15 * 86400000).toISOString(),
-  },
-  {
-    id: 'demo-collab-3',
-    full_name: 'Serge Bamba',
-    email: 'serge.bamba@hinovgroup.com',
-    job_title: 'Consultant Senior Cybersécurité',
-    department: 'Direction Technique',
-    role: 'collaborateur',
-    is_active: false,
-    must_change_password: false,
-    avatar_url: null,
-    last_login_at: new Date(Date.now() - 60 * 86400000).toISOString(),
-    created_at: new Date(Date.now() - 90 * 86400000).toISOString(),
-  },
-  {
-    id: 'demo-director-1',
-    full_name: 'Dr. Eric Yao',
-    email: 'eric.yao@hinovgroup.com',
-    job_title: 'Directeur Général Adjoint',
-    department: 'Comité de Direction',
-    role: 'directeur_admin',
-    is_active: true,
-    must_change_password: false,
-    avatar_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=80',
-    last_login_at: new Date().toISOString(),
-    created_at: new Date(Date.now() - 120 * 86400000).toISOString(),
-  },
-  {
-    id: 'demo-superadmin-1',
-    full_name: 'Super Administrateur',
-    email: 'superadmin@hinovgroup.com',
-    job_title: 'Responsable Systèmes d’Information',
-    department: 'DSI / Sécurité',
-    role: 'super_admin',
-    is_active: true,
-    must_change_password: false,
-    avatar_url: null,
-    last_login_at: new Date().toISOString(),
-    created_at: new Date(Date.now() - 200 * 86400000).toISOString(),
-  },
-];
-
 export const AdminService = {
   async getAllUsers(): Promise<UserProfile[]> {
     if (!isSupabaseConfigured) {
       const raw = await AsyncStorage.getItem(USERS_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : DEFAULT_ADMIN_USERS;
+      return raw ? JSON.parse(raw) : [];
     }
 
     try {
@@ -87,9 +19,11 @@ export const AdminService = {
 
       if (error) throw error;
       return data || [];
-    } catch (err) {
-      console.error('Error fetching users:', err);
-      return [];
+    } catch (err: any) {
+      console.error('Error fetching users from Supabase:', err);
+      // Fallback to local storage if network or table error
+      const raw = await AsyncStorage.getItem(USERS_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
     }
   },
 
@@ -130,6 +64,7 @@ export const AdminService = {
     }
 
     try {
+      // 1. Primary path: Supabase Edge Function (server-side admin creation)
       const { data, error } = await supabase.functions.invoke('admin-create-user', {
         body: {
           ...payload,
@@ -137,14 +72,77 @@ export const AdminService = {
         },
       });
 
-      if (error) return { success: false, error: error.message };
+      if (!error && data?.user) {
+        return {
+          success: true,
+          user: data.user,
+          temporaryPassword: tempPassword,
+        };
+      }
+
+      // 2. Direct Supabase Auth Fallback (if edge function is pending deployment)
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+        email: payload.email,
+        password: tempPassword,
+        options: {
+          data: {
+            full_name: payload.fullName,
+            job_title: payload.jobTitle || '',
+            department: payload.department || '',
+            role: payload.role,
+            must_change_password: payload.mustChangePassword !== false,
+          },
+        },
+      });
+
+      if (signUpError) {
+        return { success: false, error: signUpError.message };
+      }
+
+      if (authData.user) {
+        // Upsert into public.profiles
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: authData.user.id,
+            full_name: payload.fullName,
+            email: payload.email,
+            job_title: payload.jobTitle || '',
+            department: payload.department || '',
+            role: payload.role,
+            is_active: payload.isActive !== false,
+            must_change_password: payload.mustChangePassword !== false,
+          })
+          .select()
+          .single();
+
+        if (profileError) {
+          console.warn('Profile direct upsert warning:', profileError);
+        }
+
+        return {
+          success: true,
+          user: profileData || {
+            id: authData.user.id,
+            full_name: payload.fullName,
+            email: payload.email,
+            job_title: payload.jobTitle || '',
+            department: payload.department || '',
+            role: payload.role,
+            is_active: payload.isActive !== false,
+            must_change_password: payload.mustChangePassword !== false,
+            avatar_url: null,
+          },
+          temporaryPassword: tempPassword,
+        };
+      }
+
       return {
-        success: true,
-        user: data.user,
-        temporaryPassword: tempPassword,
+        success: false,
+        error: error?.message || 'Erreur lors de la création du compte sur Supabase',
       };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      return { success: false, error: err.message || 'Erreur de communication avec Supabase' };
     }
   },
 
