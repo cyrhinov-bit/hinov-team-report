@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useImperativeHandle, forwardRef } from 'react';
 import {
   View,
   Text,
@@ -6,11 +6,13 @@ import {
   StyleSheet,
   TextInputProps,
   TouchableOpacity,
+  Pressable,
+  Platform,
 } from 'react-native';
 import { Eye, EyeOff } from 'lucide-react-native';
 import { COLORS } from '@/constants/colors';
 
-interface InputProps extends TextInputProps {
+export interface InputProps extends TextInputProps {
   key?: React.Key;
   label?: string;
   error?: string;
@@ -19,22 +21,32 @@ interface InputProps extends TextInputProps {
   leftIcon?: React.ReactNode;
 }
 
-export const Input: React.FC<InputProps> = ({
+export const Input = forwardRef<TextInput, InputProps>(({
   label,
   error,
   helperText,
   isPassword = false,
   leftIcon,
   style,
+  onFocus,
+  onBlur,
   ...rest
-}) => {
+}, ref) => {
   const [isFocused, setIsFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const internalRef = useRef<TextInput>(null);
+
+  useImperativeHandle(ref, () => internalRef.current as TextInput);
+
+  const handleWrapperPress = () => {
+    internalRef.current?.focus();
+  };
 
   return (
     <View style={styles.container}>
       {label && <Text style={styles.label}>{label}</Text>}
-      <View
+      <Pressable
+        onPress={handleWrapperPress}
         style={[
           styles.inputWrapper,
           isFocused && styles.focused,
@@ -43,11 +55,23 @@ export const Input: React.FC<InputProps> = ({
       >
         {leftIcon && <View style={styles.iconContainer}>{leftIcon}</View>}
         <TextInput
+          ref={internalRef}
           placeholderTextColor={COLORS.textMuted}
           secureTextEntry={isPassword && !showPassword}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          style={[styles.input, leftIcon ? { paddingLeft: 0 } : undefined, style]}
+          onFocus={(e) => {
+            setIsFocused(true);
+            onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setIsFocused(false);
+            onBlur?.(e);
+          }}
+          style={[
+            styles.input,
+            leftIcon ? { paddingLeft: 0 } : undefined,
+            Platform.OS === 'web' ? ({ outlineStyle: 'none', outline: 'none' } as any) : undefined,
+            style,
+          ]}
           {...rest}
         />
         {isPassword && (
@@ -63,7 +87,7 @@ export const Input: React.FC<InputProps> = ({
             )}
           </TouchableOpacity>
         )}
-      </View>
+      </Pressable>
       {error ? (
         <Text style={styles.errorText}>{error}</Text>
       ) : helperText ? (
@@ -71,7 +95,9 @@ export const Input: React.FC<InputProps> = ({
       ) : null}
     </View>
   );
-};
+});
+
+Input.displayName = 'Input';
 
 const styles = StyleSheet.create({
   container: {

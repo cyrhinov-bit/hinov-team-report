@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
-  Alert,
+  TextInput,
   Image,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -25,22 +25,12 @@ export default function LoginScreen() {
     successMessage?: string;
   }>();
 
-  const [email, setEmail] = useState(params.initialEmail || '');
-  const [password, setPassword] = useState(params.initialPassword || '');
+  const [email, setEmail] = useState<string>(params.initialEmail || '');
+  const [password, setPassword] = useState<string>(params.initialPassword || '');
   const [errorMsg, setErrorMsg] = useState('');
-  const [successMsg, setSuccessMsg] = useState(params.successMessage || '');
+  const [successMsg, setSuccessMsg] = useState<string>(params.successMessage || '');
 
-  useEffect(() => {
-    if (params.initialEmail) {
-      setEmail(params.initialEmail);
-    }
-    if (params.initialPassword) {
-      setPassword(params.initialPassword);
-    }
-    if (params.successMessage) {
-      setSuccessMsg(params.successMessage);
-    }
-  }, [params.initialEmail, params.initialPassword, params.successMessage]);
+  const passwordRef = useRef<TextInput>(null);
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
@@ -57,7 +47,7 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.container}
     >
       <ScrollView
@@ -108,10 +98,14 @@ export default function LoginScreen() {
             }}
             keyboardType="email-address"
             autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
             leftIcon={<Mail size={18} color={COLORS.textSecondary} />}
           />
 
           <Input
+            ref={passwordRef}
             label="Mot de Passe"
             placeholder="••••••••••••"
             value={password}
@@ -121,6 +115,8 @@ export default function LoginScreen() {
               setSuccessMsg('');
             }}
             isPassword
+            returnKeyType="go"
+            onSubmitEditing={handleLogin}
             leftIcon={<Lock size={18} color={COLORS.textSecondary} />}
           />
 
