@@ -169,13 +169,41 @@ export const ReportsService = {
         success: true,
         message: isDirector
           ? 'Votre rapport personnel a été généré et archivé avec succès.'
-          : `Rapport validé et envoyé automatiquement au Directeur (${recipient}).`,
+          : `Rapport validé et archivé.`,
       };
     }
 
     try {
-      // Update report content and status in Supabase
-      await supabase
+      let uploadedPdfUrl: string | null | undefined = report.pdf_url;
+
+      // 2. Upload PDF to Supabase Storage if base64 provided
+      if (pdfBase64) {
+        try {
+          const byteCharacters = atob(pdfBase64);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const filePath = `${user.id}/${report.year}_W${report.week_number}.pdf`;
+
+          const { error: storageError } = await supabase.storage
+            .from('reports_pdf')
+            .upload(filePath, byteArray, { contentType: 'application/pdf', upsert: true });
+
+          if (!storageError) {
+            const { data: publicUrlData } = supabase.storage
+              .from('reports_pdf')
+              .getPublicUrl(filePath);
+            uploadedPdfUrl = publicUrlData?.publicUrl;
+          }
+        } catch (storageErr) {
+          console.warn('PDF storage upload warning:', storageErr);
+        }
+      }
+
+      // 3. Update or Upsert report in Supabase
+      const { error: updateError } = await supabase
         .from('reports')
         .update({
           status: 'soumis',
@@ -184,30 +212,38 @@ export const ReportsService = {
           content_snapshot: report.content_snapshot,
           difficulties: report.difficulties || [],
           perspectives: report.perspectives || [],
+          ...(uploadedPdfUrl ? { pdf_url: uploadedPdfUrl } : {}),
         })
         .eq('id', report.id);
 
-      // Call Supabase Edge Function to send email via Microsoft Graph
-      const { data, error } = await supabase.functions.invoke('send-report-email', {
-        body: {
-          reportId: report.id,
-          pdfBase64,
-        },
-      });
+      if (updateError) {
+        return { success: false, error: updateError.message };
+      }
 
-      if (error) {
-        return {
-          success: true,
-          message: 'Rapport soumis et archivé dans la base HTR.',
-        };
+      // 4. Call Supabase Edge Function to send email if available
+      try {
+        const { data: emailData, error: emailError } = await supabase.functions.invoke('send-report-email', {
+          body: {
+            reportId: report.id,
+            pdfBase64,
+          },
+        });
+
+        if (!emailError && emailData?.message) {
+          return { success: true, message: emailData.message };
+        }
+      } catch (e) {
+        // Edge function email is non-blocking for DB submission
       }
 
       return {
         success: true,
-        message: data?.message || 'Rapport soumis avec succès.',
+        message: isDirector
+          ? 'Votre rapport personnel a été généré et archivé avec succès dans la base HTR.'
+          : 'Rapport soumis et enregistré avec succès dans la base de données HTR.',
       };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      return { success: false, error: err.message || 'Erreur lors de la soumission du rapport' };
     }
   },
 

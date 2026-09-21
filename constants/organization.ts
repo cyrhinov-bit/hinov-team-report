@@ -18,3 +18,4 @@ export const AVAILABLE_DEPARTMENTS = [
 ] as const;
 
 export type Department = (typeof AVAILABLE_DEPARTMENTS)[number] | string;
+
