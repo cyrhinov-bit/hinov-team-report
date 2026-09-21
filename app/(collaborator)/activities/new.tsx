@@ -7,7 +7,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,7 +16,7 @@ import { Button } from '@/components/ui/Button';
 import { ActivitiesService } from '@/services/activities';
 import { ActivityStatus } from '@/types';
 import { FRENCH_DAYS, getWeekNumber, getWeekRange } from '@/utils/date';
-import { Check, Clock, AlertCircle } from 'lucide-react-native';
+import { Check, Clock, AlertCircle, ArrowLeft, CheckCircle2, Plus } from 'lucide-react-native';
 
 export default function NewActivityScreen() {
   const { user } = useAuth();
@@ -41,6 +40,8 @@ export default function NewActivityScreen() {
   const [status, setStatus] = useState<ActivityStatus>('terminee');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+  const [savedCount, setSavedCount] = useState(0);
 
   const categories = ['Général', 'Développement', 'Réunion', 'Sécurité', 'Support', 'Gestion de projet'];
 
@@ -50,12 +51,14 @@ export default function NewActivityScreen() {
     if (matched) {
       setDate(matched.dateStr);
     }
+    setErrorMsg('');
   };
 
   const handleSave = async () => {
     if (!user) return;
     if (!title.trim()) {
       setErrorMsg('Veuillez renseigner le titre de l’activité.');
+      setSuccessMsg('');
       return;
     }
 
@@ -75,9 +78,15 @@ export default function NewActivityScreen() {
     setLoading(false);
 
     if (res.activity) {
-      router.back();
+      const savedTitle = title.trim();
+      setSavedCount((c) => c + 1);
+      setSuccessMsg(`Activité "${savedTitle}" enregistrée avec succès !`);
+      setTitle('');
+      setDescription('');
+      setErrorMsg('');
     } else {
       setErrorMsg(res.error || 'Erreur lors de l’enregistrement de l’activité.');
+      setSuccessMsg('');
     }
   };
 
@@ -87,6 +96,40 @@ export default function NewActivityScreen() {
       style={styles.container}
     >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        {/* Top Navigation / Action Bar */}
+        <View style={styles.topBar}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => router.back()}
+            activeOpacity={0.7}
+          >
+            <ArrowLeft size={18} color={COLORS.textPrimary} />
+            <Text style={styles.backBtnText}>Retour</Text>
+          </TouchableOpacity>
+
+          {savedCount > 0 && (
+            <View style={styles.sessionBadge}>
+              <CheckCircle2 size={14} color="#16A34A" />
+              <Text style={styles.sessionBadgeText}>
+                {savedCount} activité{savedCount > 1 ? 's' : ''} ajoutée{savedCount > 1 ? 's' : ''}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {Boolean(successMsg) && (
+          <View style={styles.successBox}>
+            <CheckCircle2 size={18} color="#16A34A" style={{ marginTop: 1 }} />
+            <View style={{ marginLeft: 8, flex: 1 }}>
+              <Text style={styles.successTitle}>Enregistrement réussi</Text>
+              <Text style={styles.successText}>{successMsg}</Text>
+              <Text style={styles.successSub}>
+                Vous pouvez saisir une nouvelle activité ci-dessous ou quitter avec le bouton Retour.
+              </Text>
+            </View>
+          </View>
+        )}
+
         {Boolean(errorMsg) && (
           <View style={styles.errorBox}>
             <Text style={styles.errorText}>{errorMsg}</Text>
@@ -117,6 +160,7 @@ export default function NewActivityScreen() {
           onChangeText={(t) => {
             setTitle(t);
             setErrorMsg('');
+            if (successMsg) setSuccessMsg('');
           }}
         />
 
@@ -124,7 +168,10 @@ export default function NewActivityScreen() {
           label="Description / Détails"
           placeholder="Détaillez les actions concrètes réalisées, points abordés ou livrables..."
           value={description}
-          onChangeText={setDescription}
+          onChangeText={(d) => {
+            setDescription(d);
+            if (successMsg) setSuccessMsg('');
+          }}
           multiline
           numberOfLines={4}
           style={{ minHeight: 90, textAlignVertical: 'top' }}
@@ -180,14 +227,27 @@ export default function NewActivityScreen() {
           </TouchableOpacity>
         </View>
 
-        <Button
-          title="ENREGISTRER L'ACTIVITÉ"
-          onPress={handleSave}
-          loading={loading}
-          variant="primary"
-          size="lg"
-          style={{ width: '100%', marginTop: 24 }}
-        />
+        {/* Action Buttons */}
+        <View style={styles.actionsContainer}>
+          <Button
+            title="ENREGISTRER L'ACTIVITÉ"
+            onPress={handleSave}
+            loading={loading}
+            variant="primary"
+            size="lg"
+            style={{ width: '100%' }}
+            icon={<Plus size={18} color="#FFFFFF" />}
+          />
+
+          <Button
+            title="RETOUR / TERMINER"
+            onPress={() => router.back()}
+            variant="outline"
+            size="md"
+            style={{ width: '100%', marginTop: 10 }}
+            icon={<ArrowLeft size={16} color={COLORS.primary} />}
+          />
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -308,6 +368,74 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: COLORS.textSecondary,
+  },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+  },
+  backBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+    marginLeft: 6,
+  },
+  sessionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DCFCE7',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 5,
+  },
+  sessionBadgeText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#166534',
+  },
+  successBox: {
+    flexDirection: 'row',
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16,
+  },
+  successTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#166534',
+    marginBottom: 2,
+  },
+  successText: {
+    fontSize: 12.5,
+    color: '#15803D',
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  successSub: {
+    fontSize: 11,
+    color: '#166534',
+    fontStyle: 'italic',
+  },
+  actionsContainer: {
+    marginTop: 24,
+    marginBottom: 16,
   },
 });
 
