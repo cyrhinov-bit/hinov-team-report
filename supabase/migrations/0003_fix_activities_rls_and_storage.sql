@@ -21,3 +21,4 @@ CREATE POLICY "Reports user update" ON public.reports
   FOR UPDATE 
   USING (auth.uid() = user_id OR public.is_admin()) 
   WITH CHECK (auth.uid() = user_id OR public.is_admin());
+
