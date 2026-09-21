@@ -7,12 +7,15 @@
   "files": [
     "dist/**/*",
     "electron/dist/**/*",
+    "assets/**/*",
     "package.json"
   ],
   "extraMetadata": {
     "main": "electron/dist/main.js"
   },
+  "icon": "assets/images/icon.png",
   "win": {
+    "icon": "assets/images/icon.png",
     "target": [
       {
         "target": "nsis",

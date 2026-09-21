@@ -71,12 +71,20 @@ function startStaticServer(distDir: string): Promise<number> {
 }
 
 async function createWindow(): Promise<void> {
+  const iconCandidates = [
+    path.join(__dirname, '../../assets/images/icon.png'),
+    path.join(__dirname, '../assets/images/icon.png'),
+    path.join(process.cwd(), 'assets/images/icon.png'),
+  ];
+  const appIconPath = iconCandidates.find((p) => fs.existsSync(p));
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 850,
     minWidth: 980,
     minHeight: 680,
     title: 'Hinov Team Report (HTR)',
+    icon: appIconPath,
     backgroundColor: '#0B2240',
     show: true,
     webPreferences: {

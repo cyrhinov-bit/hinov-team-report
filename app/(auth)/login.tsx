@@ -8,13 +8,14 @@ import {
   Platform,
   TouchableOpacity,
   Alert,
+  Image,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { COLORS } from '@/constants/colors';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { Mail, Lock, ShieldCheck, Briefcase } from 'lucide-react-native';
+import { Mail, Lock, ShieldCheck } from 'lucide-react-native';
 
 export default function LoginScreen() {
   const { login, isLoading } = useAuth();
@@ -60,7 +61,11 @@ export default function LoginScreen() {
         {/* Header Branding */}
         <View style={styles.header}>
           <View style={styles.logoBadge}>
-            <Briefcase size={36} color="#FFFFFF" />
+            <Image
+              source={require('@/assets/images/icon.png')}
+              style={styles.logoImg}
+              resizeMode="contain"
+            />
           </View>
           <Text style={styles.brandTitle}>HINOV GROUP</Text>
           <Text style={styles.appTitle}>Hinov Team Report (HTR)</Text>
@@ -191,6 +196,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 6,
+    overflow: 'hidden',
+  },
+  logoImg: {
+    width: 58,
+    height: 58,
+    borderRadius: 14,
   },
   brandTitle: {
     fontSize: 13,

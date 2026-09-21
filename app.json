@@ -4,18 +4,30 @@
     "slug": "hinov-team-report",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
     "scheme": "htr",
     "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/images/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B2240"
+    },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.hinovgroup.htr"
+      "bundleIdentifier": "com.hinovgroup.htr",
+      "icon": "./assets/images/icon.png"
     },
     "android": {
-      "package": "com.hinovgroup.htr"
+      "package": "com.hinovgroup.htr",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#0B2240"
+      }
     },
     "web": {
       "bundler": "metro",
-      "output": "single"
+      "output": "single",
+      "favicon": "./assets/images/icon.png"
     },
     "plugins": [
       "expo-router",

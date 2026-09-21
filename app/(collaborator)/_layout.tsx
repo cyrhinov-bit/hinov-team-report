@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs, router } from 'expo-router';
-import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, View, Image } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { COLORS } from '@/constants/colors';
 import { LayoutDashboard, CheckSquare, FileText, History, User, Shield } from 'lucide-react-native';
@@ -40,6 +40,15 @@ export default function CollaboratorLayout() {
         options={{
           title: 'Dashboard',
           headerTitle: 'Hinov Team Report',
+          headerLeft: () => (
+            <View style={{ marginLeft: 16 }}>
+              <Image
+                source={require('@/assets/images/icon.png')}
+                style={{ width: 28, height: 28, borderRadius: 6 }}
+                resizeMode="contain"
+              />
+            </View>
+          ),
           headerRight: () =>
             isAdmin ? (
               <TouchableOpacity
