@@ -24,13 +24,13 @@ export function getWeekRange(week: number, year: number): {
   // Monday of Week 1
   const monWeek1 = new Date(year, 0, 4 - jan4Day);
   // Monday of Week W
-  const monday = new Date(monWeek1.getTime() + (week - 1) * 7 * 86400000);
+  const monday = new Date(monWeek1.getFullYear(), monWeek1.getMonth(), monWeek1.getDate() + (week - 1) * 7);
 
   const dayNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
   const days: { dayOfWeek: number; dateStr: string; label: string }[] = [];
 
   for (let i = 0; i < 5; i++) {
-    const current = new Date(monday.getTime() + i * 86400000);
+    const current = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
     const yyyy = current.getFullYear();
     const mm = String(current.getMonth() + 1).padStart(2, '0');
     const dd = String(current.getDate()).padStart(2, '0');

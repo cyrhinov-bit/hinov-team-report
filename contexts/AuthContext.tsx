@@ -53,6 +53,29 @@ export const AuthProvider: React.FC<{ children?: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     loadSession();
+
+    if (isSupabaseConfigured) {
+      const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'SIGNED_OUT') {
+          setUser(null);
+          await AuthService.setStoredProfile(null);
+        } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+          if (profile) {
+            setUser(profile);
+            await AuthService.setStoredProfile(profile);
+          }
+        }
+      });
+
+      return () => {
+        authListener.subscription.unsubscribe();
+      };
+    }
   }, []);
 
   const login = async (email: string, pass: string) => {
