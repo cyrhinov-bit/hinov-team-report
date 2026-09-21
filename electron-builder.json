@@ -8,11 +8,13 @@
     "dist/**/*",
     "electron/dist/**/*",
     "assets/**/*",
-    "package.json"
+    "!**/node_modules/**/*"
   ],
   "extraMetadata": {
     "main": "electron/dist/main.js"
   },
+  "asar": true,
+  "npmRebuild": false,
   "icon": "assets/images/icon.png",
   "win": {
     "icon": "assets/images/icon.png",
