@@ -193,8 +193,23 @@ export default function ProfileScreen() {
             <Sparkles size={18} color={COLORS.ai} />
           </View>
           <View style={styles.menuContent}>
-            <Text style={styles.menuTitle}>Clé API Gemini AI</Text>
-            <Text style={styles.menuSub}>Configurer votre clé personnelle d'IA</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={styles.menuTitle}>Clé API Gemini AI</Text>
+              {user?.custom_gemini_api_key ? (
+                <View style={[styles.miniStatusBadge, { backgroundColor: '#DCFCE7' }]}>
+                  <Text style={[styles.miniStatusText, { color: '#16A34A' }]}>Active</Text>
+                </View>
+              ) : (
+                <View style={[styles.miniStatusBadge, { backgroundColor: '#F1F5F9' }]}>
+                  <Text style={[styles.miniStatusText, { color: '#64748B' }]}>Clé globale</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.menuSub}>
+              {user?.custom_gemini_api_key
+                ? 'Clé personnelle enregistrée et active'
+                : 'Renseignez votre clé personnelle ou utilisez celle du groupe'}
+            </Text>
           </View>
           <ChevronRight size={18} color={COLORS.textMuted} />
         </TouchableOpacity>
@@ -323,6 +338,16 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     color: COLORS.textSecondary,
     marginTop: 1,
+  },
+  miniStatusBadge: {
+    marginLeft: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+  },
+  miniStatusText: {
+    fontSize: 10,
+    fontWeight: '700',
   },
 });
 
