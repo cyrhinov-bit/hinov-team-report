@@ -183,7 +183,12 @@ export default function CollaboratorDashboard() {
           <View style={[styles.cardIconBox, { backgroundColor: '#EFF6FF' }]}>
             <Clock size={18} color={COLORS.primaryAccent} />
           </View>
-          <Text style={styles.cardTitle}>Progression de la Semaine</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>Progression de la Semaine</Text>
+            <Text style={styles.weekProgressHint}>
+              Touchez un jour pour y ajouter une activité
+            </Text>
+          </View>
           <Text style={styles.weekRangeText}>
             {weekRange.startDate} au {weekRange.endDate}
           </Text>
@@ -191,12 +196,19 @@ export default function CollaboratorDashboard() {
 
         <View style={styles.weekProgressRow}>
           {weekDays.map((d) => (
-            <View
+            <TouchableOpacity
               key={`prog-${d.dayOfWeek}`}
               style={[
                 styles.dayProgressCol,
                 d.isToday && styles.dayProgressToday,
               ]}
+              onPress={() => {
+                router.push({
+                  pathname: '/(collaborator)/activities/new',
+                  params: { date: d.dateStr, dayOfWeek: String(d.dayOfWeek) },
+                });
+              }}
+              activeOpacity={0.7}
             >
               <Text
                 style={[
@@ -207,12 +219,24 @@ export default function CollaboratorDashboard() {
                 {d.label.substring(0, 3)}
               </Text>
               {d.isCompleted ? (
-                <CheckCircle2 size={20} color={COLORS.success} />
+                <View style={styles.dayIconContainer}>
+                  <CheckCircle2 size={20} color={COLORS.success} />
+                </View>
               ) : (
-                <Circle size={20} color={COLORS.border} />
+                <View style={styles.dayIconContainer}>
+                  <Plus size={18} color={d.isToday ? COLORS.primaryAccent : COLORS.textMuted} />
+                </View>
               )}
-              <Text style={styles.dayProgressCount}>{d.count} act.</Text>
-            </View>
+              <Text
+                style={[
+                  styles.dayProgressCount,
+                  d.isCompleted && styles.dayProgressCountDone,
+                  d.isToday && !d.isCompleted && styles.dayProgressCountTodayEmpty,
+                ]}
+              >
+                {d.count > 0 ? `${d.count} act.` : '+ Ajouter'}
+              </Text>
+            </TouchableOpacity>
           ))}
         </View>
       </Card>
@@ -364,39 +388,70 @@ const styles = StyleSheet.create({
   weekRangeText: {
     fontSize: 11,
     color: COLORS.textMuted,
+    fontWeight: '600',
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  weekProgressHint: {
+    fontSize: 11,
+    color: COLORS.primaryAccent,
     fontWeight: '500',
+    marginTop: 1,
   },
   weekProgressRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 4,
+    marginTop: 8,
+    gap: 4,
   },
   dayProgressCol: {
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    borderRadius: 10,
     flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
   dayProgressToday: {
     backgroundColor: '#EFF6FF',
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderWidth: 1.5,
+    borderColor: COLORS.primaryAccent,
+  },
+  dayIconContainer: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 2,
   },
   dayProgressLabel: {
     fontSize: 11,
     fontWeight: '700',
     color: COLORS.textSecondary,
-    marginBottom: 6,
+    marginBottom: 4,
   },
   dayProgressLabelToday: {
     color: COLORS.primaryAccent,
+    fontWeight: '800',
   },
   dayProgressCount: {
-    fontSize: 10,
+    fontSize: 9.5,
     color: COLORS.textMuted,
-    marginTop: 4,
+    marginTop: 2,
     fontWeight: '600',
+    textAlign: 'center',
+  },
+  dayProgressCountDone: {
+    color: COLORS.success,
+    fontWeight: '700',
+  },
+  dayProgressCountTodayEmpty: {
+    color: COLORS.primaryAccent,
+    fontWeight: '700',
   },
   reportSummaryText: {
     fontSize: 13,
