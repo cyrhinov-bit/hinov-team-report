@@ -100,6 +100,17 @@ export const AuthService = {
         return { profile: null, error: 'Votre compte a été désactivé par l’administrateur.' };
       }
 
+      if (profileData.must_change_password && profileData.temp_password_expires_at) {
+        const isExpired = new Date().getTime() > new Date(profileData.temp_password_expires_at).getTime();
+        if (isExpired) {
+          await supabase.auth.signOut();
+          return {
+            profile: null,
+            error: 'Ce mot de passe temporaire a expiré (délai de 24h dépassé). Veuillez demander une nouvelle réinitialisation à votre administrateur ou via "Mot de passe oublié".',
+          };
+        }
+      }
+
       await this.setStoredProfile(profileData);
       return { profile: profileData };
     } catch (err: any) {
@@ -112,6 +123,7 @@ export const AuthService = {
       const current = await this.getStoredProfile();
       if (current) {
         current.must_change_password = false;
+        current.temp_password_expires_at = null;
         await this.setStoredProfile(current);
       }
       return { success: true };
@@ -128,7 +140,10 @@ export const AuthService = {
       if (user) {
         await supabase
           .from('profiles')
-          .update({ must_change_password: false })
+          .update({
+            must_change_password: false,
+            temp_password_expires_at: null,
+          })
           .eq('id', user.id);
       }
 

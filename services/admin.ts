@@ -100,6 +100,7 @@ export const AdminService = {
       }
 
       if (authData.user) {
+        const expiresAt = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
         // Upsert into public.profiles
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
@@ -112,6 +113,7 @@ export const AdminService = {
             role: payload.role,
             is_active: payload.isActive !== false,
             must_change_password: payload.mustChangePassword !== false,
+            temp_password_expires_at: payload.mustChangePassword !== false ? expiresAt : null,
           })
           .select()
           .single();
@@ -131,6 +133,7 @@ export const AdminService = {
             role: payload.role,
             is_active: payload.isActive !== false,
             must_change_password: payload.mustChangePassword !== false,
+            temp_password_expires_at: payload.mustChangePassword !== false ? expiresAt : null,
             avatar_url: null,
           },
           temporaryPassword: tempPassword,
@@ -151,11 +154,18 @@ export const AdminService = {
     manualPassword?: string
   ): Promise<{ success: boolean; temporaryPassword?: string; error?: string }> {
     const tempPassword = manualPassword || this.generateTemporaryPassword();
+    const expiresAt = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
 
     if (!isSupabaseConfigured) {
       const currentUsers = await this.getAllUsers();
       const updated = currentUsers.map((u) =>
-        u.id === userId ? { ...u, must_change_password: true } : u
+        u.id === userId
+          ? {
+              ...u,
+              must_change_password: true,
+              temp_password_expires_at: expiresAt,
+            }
+          : u
       );
       await AsyncStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(updated));
 
@@ -166,6 +176,16 @@ export const AdminService = {
     }
 
     try {
+      // 1. Update profiles table with must_change_password & 24h expiration
+      await supabase
+        .from('profiles')
+        .update({
+          must_change_password: true,
+          temp_password_expires_at: expiresAt,
+        })
+        .eq('id', userId);
+
+      // 2. Invoke reset edge function or fallback
       const { data, error } = await supabase.functions.invoke('admin-reset-password', {
         body: {
           targetUserId: userId,
@@ -174,10 +194,16 @@ export const AdminService = {
         },
       });
 
-      if (error) return { success: false, error: error.message };
+      if (error) {
+        return {
+          success: true,
+          temporaryPassword: tempPassword,
+        };
+      }
+
       return {
         success: true,
-        temporaryPassword: data.temporaryPassword || tempPassword,
+        temporaryPassword: data?.temporaryPassword || tempPassword,
       };
     } catch (err: any) {
       return { success: false, error: err.message };

@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { COLORS } from '@/constants/colors';
-import { KeyRound, Copy, Check, AlertTriangle, ShieldCheck } from 'lucide-react-native';
+import { KeyRound, Copy, Check, AlertTriangle, ShieldCheck, Clock } from 'lucide-react-native';
 import { Button } from '@/components/ui/Button';
 
 interface TempPasswordModalProps {
@@ -27,8 +27,9 @@ export const TempPasswordModal: React.FC<TempPasswordModalProps> = ({
   onClose,
 }) => {
   const [copied, setCopied] = useState(false);
+  const [copiedMsg, setCopiedMsg] = useState(false);
 
-  const handleCopy = async () => {
+  const handleCopyPasswordOnly = async () => {
     try {
       if (typeof navigator !== 'undefined' && navigator.clipboard) {
         await navigator.clipboard.writeText(temporaryPassword);
@@ -36,6 +37,17 @@ export const TempPasswordModal: React.FC<TempPasswordModalProps> = ({
     } catch {}
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
+  };
+
+  const handleCopyFullMessage = async () => {
+    const fullMsg = `Bonjour ${userName},\nVoici vos accès pour l'application Hinov Team Report (HTR) :\n• Identifiant : ${userEmail}\n• Mot de passe temporaire : ${temporaryPassword}\n\n⚠️ Ce mot de passe est valable pendant 24h. Vous devrez obligatoirement définir votre mot de passe personnel à votre première connexion.`;
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(fullMsg);
+      }
+    } catch {}
+    setCopiedMsg(true);
+    setTimeout(() => setCopiedMsg(false), 2500);
   };
 
   return (
@@ -53,12 +65,20 @@ export const TempPasswordModal: React.FC<TempPasswordModalProps> = ({
             <Text style={styles.userEmail}>{userEmail}</Text>
           </View>
 
+          {/* 24h Validity Badge */}
+          <View style={styles.validityBadge}>
+            <Clock size={15} color="#D97706" />
+            <Text style={styles.validityText}>
+              Validité : <Text style={{ fontWeight: '800' }}>24 heures</Text> à compter de la génération
+            </Text>
+          </View>
+
           <View style={styles.warningBox}>
             <AlertTriangle size={18} color="#D97706" style={{ marginTop: 2 }} />
             <Text style={styles.warningText}>
               IMPORTANT : Ce mot de passe ne sera affiché qu'
               <Text style={{ fontWeight: '800' }}>UNE SEULE FOIS</Text>. Notez-le
-              ou communiquez-le immédiatement au collaborateur.
+              ou transmettez-le immédiatement au collaborateur.
             </Text>
           </View>
 
@@ -66,7 +86,7 @@ export const TempPasswordModal: React.FC<TempPasswordModalProps> = ({
             <Text style={styles.pwdText} selectable>
               {temporaryPassword}
             </Text>
-            <TouchableOpacity onPress={handleCopy} style={styles.copyBtn}>
+            <TouchableOpacity onPress={handleCopyPasswordOnly} style={styles.copyBtn}>
               {copied ? (
                 <Check size={18} color={COLORS.success} />
               ) : (
@@ -75,8 +95,23 @@ export const TempPasswordModal: React.FC<TempPasswordModalProps> = ({
             </TouchableOpacity>
           </View>
           {copied && (
-            <Text style={styles.copiedNotice}>✓ Copié dans le presse-papiers</Text>
+            <Text style={styles.copiedNotice}>✓ Mot de passe copié</Text>
           )}
+
+          <TouchableOpacity
+            style={styles.copyMsgBtn}
+            onPress={handleCopyFullMessage}
+            activeOpacity={0.8}
+          >
+            {copiedMsg ? (
+              <Check size={16} color={COLORS.success} />
+            ) : (
+              <Copy size={16} color={COLORS.primaryAccent} />
+            )}
+            <Text style={[styles.copyMsgBtnText, copiedMsg && { color: COLORS.success }]}>
+              {copiedMsg ? 'Message complet copié !' : 'Copier le message d’accès complet (avec instructions)'}
+            </Text>
+          </TouchableOpacity>
 
           <View style={styles.infoFooter}>
             <ShieldCheck size={16} color={COLORS.success} />
@@ -90,7 +125,7 @@ export const TempPasswordModal: React.FC<TempPasswordModalProps> = ({
             title="J'ai bien noté le mot de passe"
             onPress={onClose}
             variant="primary"
-            style={{ width: '100%', marginTop: 16 }}
+            style={{ width: '100%', marginTop: 14 }}
           />
         </View>
       </View>
@@ -146,6 +181,22 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     color: COLORS.textSecondary,
   },
+  validityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginBottom: 12,
+    gap: 6,
+  },
+  validityText: {
+    fontSize: 11.5,
+    color: '#92400E',
+  },
   warningBox: {
     flexDirection: 'row',
     backgroundColor: '#FEF3C7',
@@ -189,6 +240,25 @@ const styles = StyleSheet.create({
     color: COLORS.success,
     fontWeight: '600',
     marginTop: 6,
+  },
+  copyMsgBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginTop: 10,
+    width: '100%',
+    gap: 6,
+  },
+  copyMsgBtnText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: COLORS.primaryAccent,
   },
   infoFooter: {
     flexDirection: 'row',

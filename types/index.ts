@@ -15,6 +15,7 @@ export interface UserProfile {
   role: AppRole;
   is_active: boolean;
   must_change_password: boolean;
+  temp_password_expires_at?: string | null;
   avatar_url?: string | null;
   custom_gemini_api_key?: string | null;
   last_login_at?: string | null;
