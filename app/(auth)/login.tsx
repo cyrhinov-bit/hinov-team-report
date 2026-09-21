@@ -36,19 +36,6 @@ export default function LoginScreen() {
     }
   };
 
-  const fillDemo = (type: 'collab' | 'director' | 'superadmin') => {
-    if (type === 'collab') {
-      setEmail('jm.kouassi@hinovgroup.com');
-      setPassword('Hinov2026!Collab');
-    } else if (type === 'director') {
-      setEmail('eric.yao@hinovgroup.com');
-      setPassword('Hinov2026!Directeur');
-    } else {
-      setEmail('superadmin@hinovgroup.com');
-      setPassword('Hinov2026!Admin');
-    }
-  };
-
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -126,35 +113,6 @@ export default function LoginScreen() {
             size="lg"
             style={{ width: '100%', marginTop: 8 }}
           />
-
-          {/* Quick Demo Access Bar */}
-          <View style={styles.demoSection}>
-            <Text style={styles.demoLabel}>Connexion rapide démo :</Text>
-            <View style={styles.demoBtnsRow}>
-              <TouchableOpacity
-                style={styles.demoPill}
-                onPress={() => fillDemo('collab')}
-              >
-                <Text style={styles.demoPillText}>Collaborateur</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.demoPill, { backgroundColor: '#EFF6FF' }]}
-                onPress={() => fillDemo('director')}
-              >
-                <Text style={[styles.demoPillText, { color: COLORS.primaryAccent }]}>
-                  Directeur
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.demoPill, { backgroundColor: COLORS.aiLight }]}
-                onPress={() => fillDemo('superadmin')}
-              >
-                <Text style={[styles.demoPillText, { color: COLORS.ai }]}>
-                  Super Admin
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
         </View>
 
         {/* Security Footer */}
@@ -266,36 +224,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.primaryAccent,
     fontWeight: '600',
-  },
-  demoSection: {
-    marginTop: 24,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    alignItems: 'center',
-  },
-  demoLabel: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: COLORS.textMuted,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-  },
-  demoBtnsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  demoPill: {
-    backgroundColor: COLORS.surfaceSubtle,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  demoPillText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
   },
   footer: {
     flexDirection: 'row',
