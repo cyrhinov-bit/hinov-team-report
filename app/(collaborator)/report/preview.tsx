@@ -87,12 +87,12 @@ export default function ReportPreviewScreen() {
       title: 'Soumission Définitive',
       message: isDirector
         ? 'Confirmez-vous la validation et l’archivage de votre rapport hebdomadaire personnel ?'
-        : 'Confirmez-vous l’envoi automatique de votre rapport et du PDF généré au Directeur par email ?',
+        : 'Confirmez-vous la soumission définitive de votre rapport hebdomadaire à la Direction ?',
       confirmText: 'Confirmer & Soumettre',
       onConfirm: async () => {
         setSubmitting(true);
         try {
-          // Generate PDF base64 for email attachment
+          // Generate PDF base64 for archiving and storage
           const pdfFile = await PdfService.generatePdfFile(report!, user, activitiesByDay, settings || undefined);
           const res = await ReportsService.submitReport(report!, user, pdfFile.base64);
 

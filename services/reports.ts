@@ -151,17 +151,12 @@ export const ReportsService = {
     const actIds = (report.content_snapshot || []).map((a) => a.id).filter(Boolean);
     await ActivitiesService.lockActivities(actIds);
 
-    const settings = await SettingsService.getSettings();
-    const directorEmail = settings.director_email || 'direction@hinovgroup.com';
     const isDirector = user.role === 'directeur_admin';
-    const recipient = isDirector ? 'Non envoyé (Rapport Directeur)' : directorEmail;
 
     if (!isSupabaseConfigured) {
       await this.saveReportDraft(report.id, {
         status: 'soumis',
         submitted_at: new Date().toISOString(),
-        emailed_at: isDirector ? null : new Date().toISOString(),
-        email_recipient: recipient,
         content_snapshot: report.content_snapshot,
         difficulties: report.difficulties || [],
         perspectives: report.perspectives || [],
@@ -171,8 +166,8 @@ export const ReportsService = {
       return {
         success: true,
         message: isDirector
-          ? 'Votre rapport personnel a été généré et archivé avec succès.'
-          : `Rapport validé et archivé.`,
+          ? 'Votre rapport personnel a été validé et archivé avec succès.'
+          : 'Rapport hebdomadaire soumis et transmis avec succès à la Direction.',
       };
     }
 
@@ -205,13 +200,12 @@ export const ReportsService = {
         }
       }
 
-      // 3. Update or Upsert report in Supabase
+      // 3. Update report in Supabase
       const { error: updateError } = await supabase
         .from('reports')
         .update({
           status: 'soumis',
           submitted_at: new Date().toISOString(),
-          email_recipient: isDirector ? null : directorEmail,
           content_snapshot: report.content_snapshot,
           difficulties: report.difficulties || [],
           perspectives: report.perspectives || [],
@@ -223,27 +217,11 @@ export const ReportsService = {
         return { success: false, error: updateError.message };
       }
 
-      // 4. Call Supabase Edge Function to send email if available
-      try {
-        const { data: emailData, error: emailError } = await supabase.functions.invoke('send-report-email', {
-          body: {
-            reportId: report.id,
-            pdfBase64,
-          },
-        });
-
-        if (!emailError && emailData?.message) {
-          return { success: true, message: emailData.message };
-        }
-      } catch (e) {
-        // Edge function email is non-blocking for DB submission
-      }
-
       return {
         success: true,
         message: isDirector
-          ? 'Votre rapport personnel a été généré et archivé avec succès dans la base HTR.'
-          : 'Rapport soumis et enregistré avec succès dans la base de données HTR.',
+          ? 'Votre rapport personnel a été validé et archivé avec succès dans l’espace Direction.'
+          : 'Votre rapport hebdomadaire a été soumis et transmis avec succès à la Direction.',
       };
     } catch (err: any) {
       return { success: false, error: err.message || 'Erreur lors de la soumission du rapport' };
