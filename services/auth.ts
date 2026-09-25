@@ -2,46 +2,6 @@ import { supabase, isSupabaseConfigured } from './supabase';
 import { UserProfile, AppRole } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Local Demo Mock Profile for preview when Supabase is not connected
-const DEMO_COLLABORATOR: UserProfile = {
-  id: 'demo-collab-1',
-  full_name: 'Jean-Marc Kouassi',
-  email: 'jm.kouassi@hinovgroup.com',
-  job_title: 'Ingénieur Solutions Cloud',
-  department: 'Direction Technique',
-  role: 'collaborateur',
-  is_active: true,
-  must_change_password: false,
-  avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
-  custom_gemini_api_key: null,
-};
-
-const DEMO_DIRECTOR: UserProfile = {
-  id: 'demo-director-1',
-  full_name: 'Dr. Eric Yao',
-  email: 'eric.yao@hinovgroup.com',
-  job_title: 'Directeur Général Adjoint',
-  department: 'Comité de Direction',
-  role: 'directeur_admin',
-  is_active: true,
-  must_change_password: false,
-  avatar_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=80',
-  custom_gemini_api_key: null,
-};
-
-const DEMO_SUPER_ADMIN: UserProfile = {
-  id: 'demo-superadmin-1',
-  full_name: 'Super Administrateur',
-  email: 'superadmin@hinovgroup.com',
-  job_title: 'Responsable Systèmes d’Information',
-  department: 'DSI / Sécurité',
-  role: 'super_admin',
-  is_active: true,
-  must_change_password: false,
-  avatar_url: null,
-  custom_gemini_api_key: null,
-};
-
 const STORAGE_PROFILE_KEY = '@htr_user_profile';
 
 export const AuthService = {
@@ -60,18 +20,7 @@ export const AuthService = {
 
   async login(email: string, password: string): Promise<{ profile: UserProfile | null; error?: string }> {
     if (!isSupabaseConfigured) {
-      // Mock Demo Login Logic
-      let matched = DEMO_COLLABORATOR;
-      if (email.toLowerCase().includes('directeur') || email.toLowerCase().includes('eric')) {
-        matched = DEMO_DIRECTOR;
-      } else if (email.toLowerCase().includes('admin') || email.toLowerCase().includes('super')) {
-        matched = DEMO_SUPER_ADMIN;
-      } else {
-        matched = { ...DEMO_COLLABORATOR, email };
-      }
-
-      await this.setStoredProfile(matched);
-      return { profile: matched };
+      return { profile: null, error: 'Configuration Supabase non configurée ou indisponible.' };
     }
 
     try {
