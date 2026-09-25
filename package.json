@@ -10,6 +10,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "build": "expo export -p web",
     "lint": "tsc --noEmit",
     "electron:compile": "tsc -p electron/tsconfig.json",
     "electron:dev": "npm run electron:compile && concurrently -k -s first \"cross-env CI=1 npx expo start --web --port 8081\" \"wait-on http://127.0.0.1:8081 && cross-env NODE_ENV=development electron electron/dist/main.js\"",
