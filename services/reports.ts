@@ -1,6 +1,7 @@
 import { supabase, isSupabaseConfigured } from './supabase';
 import { WeeklyReport, ReportStatus, Activity, UserProfile } from '@/types';
 import { ActivitiesService } from './activities';
+import { SettingsService } from './settings';
 import { getWeekNumber, getWeekRange } from '@/utils/date';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -150,8 +151,10 @@ export const ReportsService = {
     const actIds = (report.content_snapshot || []).map((a) => a.id).filter(Boolean);
     await ActivitiesService.lockActivities(actIds);
 
+    const settings = await SettingsService.getSettings();
+    const directorEmail = settings.director_email || 'direction@hinovgroup.com';
     const isDirector = user.role === 'directeur_admin';
-    const recipient = isDirector ? 'Non envoyé (Rapport Directeur)' : 'direction@hinovgroup.com';
+    const recipient = isDirector ? 'Non envoyé (Rapport Directeur)' : directorEmail;
 
     if (!isSupabaseConfigured) {
       await this.saveReportDraft(report.id, {
@@ -208,7 +211,7 @@ export const ReportsService = {
         .update({
           status: 'soumis',
           submitted_at: new Date().toISOString(),
-          email_recipient: isDirector ? null : 'direction@hinovgroup.com',
+          email_recipient: isDirector ? null : directorEmail,
           content_snapshot: report.content_snapshot,
           difficulties: report.difficulties || [],
           perspectives: report.perspectives || [],
