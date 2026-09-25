@@ -64,12 +64,18 @@ export default function WeeklyReportScreen() {
       setDifficulties(rep.difficulties || []);
       setPerspectives(rep.perspectives || []);
 
-      // If draft has snapshot, use snapshot; otherwise load from activities table
+      // Load latest activities for the current week
+      const dbActivities = await ActivitiesService.getActivitiesForUser(user.id, weekRange.startDate, weekRange.endDate);
       let acts: Activity[] = [];
+
       if (rep.status === 'soumis' && rep.content_snapshot && rep.content_snapshot.length > 0) {
-        acts = rep.content_snapshot;
+        // Merge snapshot with any new/updated db activities
+        const actMap = new Map<string, Activity>();
+        rep.content_snapshot.forEach((a) => actMap.set(a.id, a));
+        dbActivities.forEach((a) => actMap.set(a.id, a));
+        acts = Array.from(actMap.values());
       } else {
-        acts = await ActivitiesService.getActivitiesForUser(user.id, weekRange.startDate, weekRange.endDate);
+        acts = dbActivities;
       }
 
       const grouped: Record<number, Activity[]> = { 1: [], 2: [], 3: [], 4: [], 5: [] };
@@ -86,9 +92,17 @@ export default function WeeklyReportScreen() {
     }
   };
 
+  useEffect(() => {
+    if (user) {
+      loadReportData();
+    }
+  }, [user]);
+
   useFocusEffect(
     useCallback(() => {
-      loadReportData();
+      if (user) {
+        loadReportData();
+      }
     }, [user])
   );
 

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  ActivityIndicator,
   Alert,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
@@ -22,6 +23,7 @@ export default function ActivitiesListScreen() {
   const { user } = useAuth();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<number | 'all'>('all');
 
   const { week, year } = getWeekNumber();
@@ -29,17 +31,29 @@ export default function ActivitiesListScreen() {
 
   const loadActivities = async () => {
     if (!user) return;
-    const list = await ActivitiesService.getActivitiesForUser(
-      user.id,
-      weekRange.startDate,
-      weekRange.endDate
-    );
-    setActivities(list);
+    try {
+      const list = await ActivitiesService.getActivitiesForUser(
+        user.id,
+        weekRange.startDate,
+        weekRange.endDate
+      );
+      setActivities(list);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    if (user) {
+      loadActivities();
+    }
+  }, [user]);
 
   useFocusEffect(
     useCallback(() => {
-      loadActivities();
+      if (user) {
+        loadActivities();
+      }
     }, [user])
   );
 
