@@ -108,7 +108,7 @@ export default function WeeklyReportScreen() {
 
     if (user && isSupabaseConfigured) {
       const channel = supabase
-        .channel(`rt:report:${user.id}`)
+        .channel(`rt:report:${user.id}:${Date.now()}`)
         .on(
           'postgres_changes',
           {

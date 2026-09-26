@@ -43,7 +43,7 @@ export default function AdminUsersScreen() {
 
     if (isSupabaseConfigured) {
       const channel = supabase
-        .channel('rt:admin_users')
+        .channel(`rt:admin_users:${Date.now()}`)
         .on(
           'postgres_changes',
           {

@@ -52,7 +52,7 @@ export default function AdminReportsScreen() {
 
     if (isSupabaseConfigured) {
       const channel = supabase
-        .channel('rt:admin_reports')
+        .channel(`rt:admin_reports:${Date.now()}`)
         .on(
           'postgres_changes',
           {

@@ -51,7 +51,7 @@ export default function ActivitiesListScreen() {
 
     if (user && isSupabaseConfigured) {
       const channel = supabase
-        .channel(`rt:activities:${user.id}`)
+        .channel(`rt:activities:${user.id}:${Date.now()}`)
         .on(
           'postgres_changes',
           {
