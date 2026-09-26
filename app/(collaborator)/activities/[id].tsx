@@ -191,8 +191,8 @@ export default function EditActivityScreen() {
             style={[styles.statusBtn, status === 'en_cours' && styles.statusEnCoursActive]}
             onPress={() => setStatus('en_cours')}
           >
-            <Clock size={16} color={status === 'en_cours' ? '#92400E' : COLORS.textSecondary} />
-            <Text style={[styles.statusBtnText, status === 'en_cours' && { color: '#92400E', fontWeight: '700' }]}>
+            <Clock size={16} color={status === 'en_cours' ? COLORS.warning : COLORS.textSecondary} />
+            <Text style={[styles.statusBtnText, status === 'en_cours' && { color: '#B7791F', fontWeight: '700' }]}>
               En cours
             </Text>
           </TouchableOpacity>
@@ -201,8 +201,8 @@ export default function EditActivityScreen() {
             style={[styles.statusBtn, status === 'en_attente' && styles.statusAttenteActive]}
             onPress={() => setStatus('en_attente')}
           >
-            <AlertCircle size={16} color={status === 'en_attente' ? '#1E293B' : COLORS.textSecondary} />
-            <Text style={[styles.statusBtnText, status === 'en_attente' && { color: '#1E293B', fontWeight: '700' }]}>
+            <AlertCircle size={16} color={status === 'en_attente' ? COLORS.textPrimary : COLORS.textSecondary} />
+            <Text style={[styles.statusBtnText, status === 'en_attente' && { color: COLORS.textPrimary, fontWeight: '700' }]}>
               En attente
             </Text>
           </TouchableOpacity>

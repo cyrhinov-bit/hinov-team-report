@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   emptyBox: {
-    backgroundColor: '#FAFBFD',
+    backgroundColor: COLORS.surfaceSubtle,
     borderRadius: 6,
     padding: 12,
     borderWidth: 1,
@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     fontSize: 12,
     color: COLORS.textPrimary,
-    backgroundColor: '#FAFBFD',
+    backgroundColor: COLORS.surfaceSubtle,
   },
   addBtn: {
     flexDirection: 'row',

@@ -56,7 +56,7 @@ export default function CollaboratorLayout() {
                 onPress={() => router.push('/(admin)')}
                 activeOpacity={0.8}
               >
-                <Shield size={14} color="#38BDF8" />
+                <Shield size={14} color={COLORS.primaryAccent} />
                 <Text style={styles.adminHeaderBtnText}>Admin</Text>
               </TouchableOpacity>
             ) : null,

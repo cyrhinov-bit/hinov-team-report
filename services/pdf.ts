@@ -37,12 +37,18 @@ export const PdfService = {
           * { box-sizing: border-box; }
           body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            color: #0F172A;
+            color: #303030;
             margin: 0;
             padding: 0;
             font-size: 12px;
             line-height: 1.45;
             background: #FFFFFF;
+          }
+          .color-line {
+            height: 4px;
+            background: linear-gradient(to right, #34495e, #9b59b6, #3498db, #62cb31, #ffb606, #e67e22, #e74c3c, #c0392b);
+            margin-bottom: 12px;
+            border-radius: 2px;
           }
           .header-banner-wrapper {
             width: 100%;
@@ -60,25 +66,25 @@ export const PdfService = {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 2.5px solid #0B2240;
+            border-bottom: 2.5px solid #e12503;
             padding-bottom: 10px;
             margin-bottom: 14px;
           }
           .brand-title {
             font-size: 22px;
             font-weight: 800;
-            color: #0B2240;
+            color: #e12503;
             letter-spacing: 0.5px;
           }
           .brand-subtitle {
             font-size: 11px;
             font-weight: 700;
-            color: #64748B;
+            color: #676a6c;
             text-transform: uppercase;
             letter-spacing: 1px;
           }
           .week-badge {
-            background: #0B2240;
+            background: #85060c;
             color: #FFFFFF;
             padding: 6px 14px;
             border-radius: 6px;
@@ -89,8 +95,8 @@ export const PdfService = {
           .user-card {
             display: flex;
             align-items: center;
-            background: #F8FAFC;
-            border: 1px solid #E2E8F0;
+            background: #f5f5f5;
+            border: 1px solid #e5e6e7;
             border-radius: 8px;
             padding: 12px 16px;
             margin-bottom: 18px;
@@ -99,20 +105,20 @@ export const PdfService = {
             width: 58px;
             height: 58px;
             border-radius: 50%;
-            border: 2px solid #0B2240;
+            border: 2px solid #e12503;
             object-fit: cover;
             margin-right: 14px;
           }
           .user-details h2 {
             margin: 0 0 3px 0;
             font-size: 15px;
-            color: #0B2240;
+            color: #303030;
             font-weight: 700;
           }
           .user-details p {
             margin: 0;
             font-size: 11.5px;
-            color: #64748B;
+            color: #676a6c;
           }
           .period-meta {
             margin-left: auto;
@@ -120,56 +126,56 @@ export const PdfService = {
           }
           .period-label {
             font-size: 10px;
-            color: #94A3B8;
+            color: #999999;
             text-transform: uppercase;
             font-weight: 600;
           }
           .period-value {
             font-size: 11.5px;
             font-weight: 700;
-            color: #0B2240;
+            color: #e12503;
           }
           .section-heading {
             font-size: 13px;
             font-weight: 800;
-            color: #0B2240;
+            color: #303030;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            border-left: 3.5px solid #0066CC;
+            border-left: 3.5px solid #e12503;
             padding-left: 8px;
             margin: 16px 0 8px 0;
           }
           .day-container {
-            border: 1px solid #E2E8F0;
+            border: 1px solid #e5e6e7;
             border-radius: 6px;
             margin-bottom: 10px;
             overflow: hidden;
             background: #FFFFFF;
           }
           .day-title {
-            background: #F1F5F9;
+            background: #f5f5f5;
             padding: 6px 12px;
             font-size: 11.5px;
             font-weight: 700;
-            color: #1E293B;
-            border-bottom: 1px solid #E2E8F0;
+            color: #303030;
+            border-bottom: 1px solid #e5e6e7;
             display: flex;
             justify-content: space-between;
           }
           .activity-row {
             padding: 7px 12px;
-            border-bottom: 1px solid #F8FAFC;
+            border-bottom: 1px solid #f5f5f5;
           }
           .activity-row:last-child {
             border-bottom: none;
           }
           .act-title {
             font-weight: 600;
-            color: #0F172A;
+            color: #303030;
             font-size: 12px;
           }
           .act-desc {
-            color: #475569;
+            color: #676a6c;
             font-size: 11px;
             margin-top: 2px;
           }
@@ -181,12 +187,12 @@ export const PdfService = {
             border-radius: 3px;
             margin-left: 6px;
           }
-          .tag-terminee { background: #DCFCE7; color: #166534; }
-          .tag-en_cours { background: #FEF3C7; color: #92400E; }
-          .tag-en_attente { background: #F1F5F9; color: #475569; }
+          .tag-terminee { background: #E8F8F0; color: #27AE60; }
+          .tag-en_cours { background: #FEF5E7; color: #f8ac59; }
+          .tag-en_attente { background: #f5f5f5; color: #676a6c; }
           .box-block {
-            background: #F8FAFC;
-            border: 1px solid #E2E8F0;
+            background: #f5f5f5;
+            border: 1px solid #e5e6e7;
             border-radius: 6px;
             padding: 10px 14px;
             margin-bottom: 12px;
@@ -198,20 +204,21 @@ export const PdfService = {
             align-items: flex-start;
           }
           .box-item:last-child { margin-bottom: 0; }
-          .bullet-diff { color: #EF4444; font-weight: bold; margin-right: 6px; }
-          .bullet-persp { color: #0066CC; font-weight: bold; margin-right: 6px; }
+          .bullet-diff { color: #e12503; font-weight: bold; margin-right: 6px; }
+          .bullet-persp { color: #03a9f4; font-weight: bold; margin-right: 6px; }
           .footer {
             margin-top: 20px;
             padding-top: 8px;
-            border-top: 1px solid #E2E8F0;
+            border-top: 1px solid #e5e6e7;
             font-size: 9.5px;
-            color: #94A3B8;
+            color: #999999;
             display: flex;
             justify-content: space-between;
           }
         </style>
       </head>
       <body>
+        <div class="color-line"></div>
         ${
           headerImageUrl
             ? `

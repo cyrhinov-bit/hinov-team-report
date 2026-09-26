@@ -31,7 +31,7 @@ export const StatsCard: React.FC<StatsCardProps> = ({
       case 'gold':
         return { bg: COLORS.goldLight, text: '#B7791F', borderTop: COLORS.gold };
       default:
-        return { bg: '#EBF5FB', text: COLORS.primaryAccent, borderTop: COLORS.primaryAccent };
+        return { bg: COLORS.infoLight, text: COLORS.primaryAccent, borderTop: COLORS.primaryAccent };
     }
   };
 

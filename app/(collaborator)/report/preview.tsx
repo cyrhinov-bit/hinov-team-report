@@ -410,16 +410,16 @@ const styles = StyleSheet.create({
   dayBoxHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: COLORS.surfaceSubtle,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: COLORS.border,
   },
   dayBoxTitle: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#1E293B',
+    color: COLORS.textPrimary,
   },
   dayBoxCount: {
     fontSize: 10,

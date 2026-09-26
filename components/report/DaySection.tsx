@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#FAFCFE',
+    backgroundColor: COLORS.surfaceSubtle,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },

@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
   },
   inactiveContainer: {
     opacity: 0.75,
-    backgroundColor: '#FAFBFD',
+    backgroundColor: COLORS.surfaceSubtle,
   },
   topRow: {
     flexDirection: 'row',

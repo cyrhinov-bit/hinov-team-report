@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 6,
-    backgroundColor: '#EBF5FB',
+    backgroundColor: COLORS.infoLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 12,
-    backgroundColor: '#EBF5FB',
+    backgroundColor: COLORS.infoLight,
   },
   badgeText: {
     fontSize: 11,
@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   emptyBox: {
-    backgroundColor: '#FAFBFD',
+    backgroundColor: COLORS.surfaceSubtle,
     borderRadius: 6,
     padding: 12,
     borderWidth: 1,
@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     fontSize: 12,
     color: COLORS.textPrimary,
-    backgroundColor: '#FAFBFD',
+    backgroundColor: COLORS.surfaceSubtle,
   },
   addBtn: {
     flexDirection: 'row',
