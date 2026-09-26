@@ -31,8 +31,10 @@ BEGIN
 
     -- 3. Delete associated audit logs for demo users
     DELETE FROM public.audit_logs 
-    WHERE user_id = ANY(demo_uids) 
-       OR user_id IN (SELECT id FROM auth.users WHERE email = ANY(demo_emails));
+    WHERE actor_id = ANY(demo_uids) 
+       OR target_user_id = ANY(demo_uids)
+       OR actor_id IN (SELECT id FROM auth.users WHERE email = ANY(demo_emails))
+       OR target_user_id IN (SELECT id FROM auth.users WHERE email = ANY(demo_emails));
 
     -- 4. Delete profiles for demo users
     DELETE FROM public.profiles 
