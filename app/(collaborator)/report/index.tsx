@@ -24,6 +24,7 @@ import { ActivitiesService } from '@/services/activities';
 import { supabase, isSupabaseConfigured } from '@/services/supabase';
 import { GeminiService } from '@/services/gemini';
 import { getWeekNumber, getWeekRange, FRENCH_DAYS } from '@/utils/date';
+import { confirmAction, showAlert } from '@/utils/alert';
 import { Activity, WeeklyReport } from '@/types';
 import {
   Sparkles,
@@ -169,25 +170,21 @@ export default function WeeklyReportScreen() {
   };
 
   const handleDeleteActivity = async (activityId: string) => {
-    Alert.alert(
-      'Supprimer l’activité',
-      'Êtes-vous sûr de vouloir supprimer cette activité ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            const res = await ActivitiesService.deleteActivity(activityId);
-            if (res.success) {
-              await loadReportData();
-            } else {
-              Alert.alert('Erreur', res.error || 'Impossible de supprimer l’activité.');
-            }
-          },
-        },
-      ]
-    );
+    confirmAction({
+      title: 'Supprimer l’activité',
+      message: 'Êtes-vous sûr de vouloir supprimer définitivement cette activité du rapport ?',
+      confirmText: 'Supprimer',
+      cancelText: 'Annuler',
+      destructive: true,
+      onConfirm: async () => {
+        const res = await ActivitiesService.deleteActivity(activityId);
+        if (res.success) {
+          await loadReportData(false);
+        } else {
+          showAlert('Erreur', res.error || 'Impossible de supprimer l’activité.');
+        }
+      },
+    });
   };
 
   const handleSaveDraft = async () => {
@@ -201,15 +198,15 @@ export default function WeeklyReportScreen() {
     });
     setSaving(false);
     if (res.success) {
-      Alert.alert('Brouillon sauvegardé', 'Vos modifications ont été enregistrées avec succès.');
+      showAlert('Brouillon sauvegardé', 'Vos modifications ont été enregistrées avec succès.');
     } else {
-      Alert.alert('Erreur de sauvegarde', res.error || 'Impossible d’enregistrer le brouillon.');
+      showAlert('Erreur de sauvegarde', res.error || 'Impossible d’enregistrer le brouillon.');
     }
   };
 
   const handleGeminiImprove = async () => {
     if (totalActivities === 0) {
-      Alert.alert(
+      showAlert(
         'Activités requises',
         'Veuillez ajouter au moins une activité avant de lancer l’optimisation Gemini AI.'
       );
@@ -247,15 +244,15 @@ export default function WeeklyReportScreen() {
           });
         }
 
-        Alert.alert(
+        showAlert(
           '✨ Amélioration Gemini AI Réussie !',
           'Le contenu de votre rapport a été enrichi et professionnalisé avec succès. Vous pouvez encore ajuster manuellement chaque section avant de soumettre.'
         );
       } else {
-        Alert.alert('Notice Gemini', res.error || 'Impossible d’effectuer l’optimisation AI.');
+        showAlert('Notice Gemini', res.error || 'Impossible d’effectuer l’optimisation AI.');
       }
     } catch (err: any) {
-      Alert.alert('Erreur AI', err.message || 'Erreur inconnue');
+      showAlert('Erreur AI', err.message || 'Erreur inconnue');
     } finally {
       setAiLoading(false);
     }

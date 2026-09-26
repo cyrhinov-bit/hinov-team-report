@@ -12,7 +12,7 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { COLORS } from '@/constants/colors';
-import { confirmAction } from '@/utils/alert';
+import { confirmAction, showAlert } from '@/utils/alert';
 import { ActivitiesService } from '@/services/activities';
 import { supabase, isSupabaseConfigured } from '@/services/supabase';
 import { DaySection } from '@/components/report/DaySection';
@@ -103,7 +103,7 @@ export default function ActivitiesListScreen() {
 
   const handleEdit = (activity: Activity) => {
     if (activity.is_locked) {
-      Alert.alert(
+      showAlert(
         'Activité verrouillée',
         'Cette activité fait partie d’un rapport hebdomadaire déjà soumis et ne peut plus être modifiée.'
       );
