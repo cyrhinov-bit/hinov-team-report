@@ -227,7 +227,10 @@ export default function ReportPreviewScreen() {
     <View style={styles.container}>
       {/* Top Action Toolbar */}
       <View style={styles.toolbar}>
-        <TouchableOpacity style={styles.toolBtn} onPress={() => router.replace('/(collaborator)/report')}>
+        <TouchableOpacity
+          style={styles.toolBtn}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(collaborator)/report'))}
+        >
           <ArrowLeft size={15} color={COLORS.textPrimary} />
           <Text style={[styles.toolBtnText, { color: COLORS.textPrimary }]}>Retour</Text>
         </TouchableOpacity>
@@ -393,8 +396,8 @@ export default function ReportPreviewScreen() {
           </>
         ) : (
           <Button
-            title="Retour à Mon Rapport"
-            onPress={() => router.replace('/(collaborator)/report')}
+            title={router.canGoBack() ? "Retour" : "Retour à Mon Rapport"}
+            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(collaborator)/report'))}
             variant="primary"
             style={{ width: '100%' }}
             icon={<ArrowLeft size={16} color="#FFFFFF" />}

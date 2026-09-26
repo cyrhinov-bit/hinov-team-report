@@ -41,7 +41,7 @@ export default function AdminReportsScreen() {
 
   const loadData = async () => {
     const allUsers = await AdminService.getAllUsers();
-    setUsers(allUsers.filter((u) => u.is_active && u.role === 'collaborateur'));
+    setUsers(allUsers.filter((u) => u.is_active && u.role !== 'super_admin'));
 
     const weekReports = await ReportsService.getAllReportsForAdmin(week, year);
     setReports(weekReports);
