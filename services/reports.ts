@@ -57,31 +57,40 @@ export const ReportsService = {
     }
 
     try {
-      // Look for existing report
-      const { data: existing } = await supabase
+      // 1. Look for existing report for this user and week
+      const { data: existing, error: fetchErr } = await supabase
         .from('reports')
-        .select('*, author:profiles(*)')
+        .select('*')
         .eq('user_id', user.id)
         .eq('week_number', w)
         .eq('year', y)
         .maybeSingle();
 
+      if (fetchErr) {
+        console.warn('Warning fetching existing report:', fetchErr.message);
+      }
+
       const activities = await ActivitiesService.getActivitiesForUser(user.id, range.startDate, range.endDate);
 
       if (existing) {
+        existing.author = user;
         if (existing.status === 'brouillon') {
-          // Update draft with fresh activities
+          // Update draft with fresh activities snapshot
           await supabase
             .from('reports')
-            .update({ content_snapshot: activities, start_date: range.startDate, end_date: range.endDate })
+            .update({
+              content_snapshot: activities,
+              start_date: range.startDate,
+              end_date: range.endDate,
+            })
             .eq('id', existing.id);
           existing.content_snapshot = activities;
         }
         return existing;
       }
 
-      // Create new draft
-      const { data: created, error } = await supabase
+      // 2. Create new draft in Supabase
+      const { data: created, error: insertError } = await supabase
         .from('reports')
         .insert([
           {
@@ -96,14 +105,33 @@ export const ReportsService = {
             perspectives: [],
           },
         ])
-        .select('*, author:profiles(*)')
+        .select('*')
         .single();
 
-      if (error) throw error;
+      if (insertError) {
+        console.error('Error creating report draft in Supabase:', insertError);
+        // In case of conflict, retry fetching
+        const { data: retryReport } = await supabase
+          .from('reports')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('week_number', w)
+          .eq('year', y)
+          .maybeSingle();
+
+        if (retryReport) {
+          retryReport.author = user;
+          return retryReport;
+        }
+        throw insertError;
+      }
+
+      created.author = user;
       return created;
     } catch (err: any) {
       console.error('Error in getOrCreateWeeklyDraft:', err);
-      // Fallback object
+      // Fallback object with user and activities
+      const activities = await ActivitiesService.getActivitiesForUser(user.id, range.startDate, range.endDate).catch(() => []);
       return {
         id: `rep-fallback-${w}`,
         user_id: user.id,
@@ -112,7 +140,7 @@ export const ReportsService = {
         start_date: range.startDate,
         end_date: range.endDate,
         status: 'brouillon',
-        content_snapshot: [],
+        content_snapshot: activities,
         difficulties: [],
         perspectives: [],
         author: user,
@@ -130,14 +158,31 @@ export const ReportsService = {
     }
 
     try {
+      // Sanitize updates to only valid table columns
+      const sanitized: Record<string, any> = {};
+      if (updates.content_snapshot !== undefined) sanitized.content_snapshot = updates.content_snapshot;
+      if (updates.difficulties !== undefined) sanitized.difficulties = updates.difficulties;
+      if (updates.perspectives !== undefined) sanitized.perspectives = updates.perspectives;
+      if (updates.status !== undefined) sanitized.status = updates.status;
+      if (updates.pdf_url !== undefined) sanitized.pdf_url = updates.pdf_url;
+      if (updates.submitted_at !== undefined) sanitized.submitted_at = updates.submitted_at;
+      if (updates.emailed_at !== undefined) sanitized.emailed_at = updates.emailed_at;
+      if (updates.email_recipient !== undefined) sanitized.email_recipient = updates.email_recipient;
+      if (updates.start_date !== undefined) sanitized.start_date = updates.start_date;
+      if (updates.end_date !== undefined) sanitized.end_date = updates.end_date;
+
       const { error } = await supabase
         .from('reports')
-        .update(updates)
+        .update(sanitized)
         .eq('id', reportId);
 
-      if (error) return { success: false, error: error.message };
+      if (error) {
+        console.error('Error saving report draft:', error);
+        return { success: false, error: error.message };
+      }
       return { success: true };
     } catch (err: any) {
+      console.error('Exception saving report draft:', err);
       return { success: false, error: err.message };
     }
   },
@@ -149,7 +194,9 @@ export const ReportsService = {
   ): Promise<{ success: boolean; message?: string; error?: string }> {
     // 1. Lock all activities present in snapshot
     const actIds = (report.content_snapshot || []).map((a) => a.id).filter(Boolean);
-    await ActivitiesService.lockActivities(actIds);
+    if (actIds.length > 0) {
+      await ActivitiesService.lockActivities(actIds);
+    }
 
     const isDirector = user.role === 'directeur_admin';
 
@@ -160,7 +207,6 @@ export const ReportsService = {
         content_snapshot: report.content_snapshot,
         difficulties: report.difficulties || [],
         perspectives: report.perspectives || [],
-        author: user,
       });
 
       return {
@@ -206,7 +252,7 @@ export const ReportsService = {
         .update({
           status: 'soumis',
           submitted_at: new Date().toISOString(),
-          content_snapshot: report.content_snapshot,
+          content_snapshot: report.content_snapshot || [],
           difficulties: report.difficulties || [],
           perspectives: report.perspectives || [],
           ...(uploadedPdfUrl ? { pdf_url: uploadedPdfUrl } : {}),
@@ -267,17 +313,40 @@ export const ReportsService = {
     try {
       const { data, error } = await supabase
         .from('reports')
-        .select('*, author:profiles(*)')
+        .select('*, author:profiles!user_id(*)')
         .eq('week_number', w)
         .eq('year', y)
         .order('submitted_at', { ascending: false });
 
-      if (error) throw error;
-      return data || [];
+      if (!error && data) {
+        return data;
+      }
+
+      // Fallback in case of relationship name discrepancy
+      const { data: rawReports, error: fallbackError } = await supabase
+        .from('reports')
+        .select('*')
+        .eq('week_number', w)
+        .eq('year', y)
+        .order('submitted_at', { ascending: false });
+
+      if (fallbackError) throw fallbackError;
+      if (!rawReports || rawReports.length === 0) return [];
+
+      const userIds = Array.from(new Set(rawReports.map((r) => r.user_id).filter(Boolean)));
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('id', userIds);
+
+      const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
+      return rawReports.map((r) => ({
+        ...r,
+        author: profileMap.get(r.user_id),
+      }));
     } catch (err) {
       console.error('Error fetching admin reports:', err);
       return [];
     }
   },
 };
-

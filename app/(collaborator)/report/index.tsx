@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/Badge';
 import { DaySection } from '@/components/report/DaySection';
 import { DifficultySection } from '@/components/report/DifficultySection';
 import { PerspectiveSection } from '@/components/report/PerspectiveSection';
+import { ColorLine } from '@/components/ui/ColorLine';
 import { ReportsService } from '@/services/reports';
 import { ActivitiesService } from '@/services/activities';
 import { supabase, isSupabaseConfigured } from '@/services/supabase';
@@ -158,17 +159,50 @@ export default function WeeklyReportScreen() {
     return list;
   };
 
+  const handleEditActivity = (activity: Activity) => {
+    router.push({
+      pathname: '/(collaborator)/activities/[id]',
+      params: { id: activity.id },
+    });
+  };
+
+  const handleDeleteActivity = async (activityId: string) => {
+    Alert.alert(
+      'Supprimer l’activité',
+      'Êtes-vous sûr de vouloir supprimer cette activité ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            const res = await ActivitiesService.deleteActivity(activityId);
+            if (res.success) {
+              await loadReportData();
+            } else {
+              Alert.alert('Erreur', res.error || 'Impossible de supprimer l’activité.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleSaveDraft = async () => {
     if (!report) return;
     setSaving(true);
     const allActs = flattenActivities();
-    await ReportsService.saveReportDraft(report.id, {
+    const res = await ReportsService.saveReportDraft(report.id, {
       content_snapshot: allActs,
       difficulties,
       perspectives,
     });
     setSaving(false);
-    Alert.alert('Brouillon sauvegardé', 'Vos modifications ont été enregistrées avec succès.');
+    if (res.success) {
+      Alert.alert('Brouillon sauvegardé', 'Vos modifications ont été enregistrées avec succès.');
+    } else {
+      Alert.alert('Erreur de sauvegarde', res.error || 'Impossible d’enregistrer le brouillon.');
+    }
   };
 
   const handleGeminiImprove = async () => {
@@ -270,6 +304,7 @@ export default function WeeklyReportScreen() {
     >
       {/* Header Info Card */}
       <Card style={styles.headerCard}>
+        <ColorLine height={3} style={{ marginBottom: 12, borderRadius: 2 }} />
         <View style={styles.headerTop}>
           <View style={styles.weekBadge}>
             <Calendar size={16} color="#FFFFFF" />
@@ -355,6 +390,8 @@ export default function WeeklyReportScreen() {
             dateStr={matchedDay?.dateStr}
             activities={activitiesByDay[d.key] || []}
             readOnly={isSubmitted}
+            onEditActivity={handleEditActivity}
+            onDeleteActivity={handleDeleteActivity}
             onAddActivity={(day) => {
               router.push({
                 pathname: '/(collaborator)/activities/new',
