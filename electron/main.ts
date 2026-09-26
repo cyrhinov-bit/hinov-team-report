@@ -85,7 +85,7 @@ async function createWindow(): Promise<void> {
     minHeight: 680,
     title: 'Hinov Team Report (HTR)',
     icon: appIconPath,
-    backgroundColor: '#0B2240',
+    backgroundColor: '#f5f5f5',
     show: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
