@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { WeeklyReport, UserProfile, Activity, CompanySettings } from '@/types';
@@ -367,16 +368,21 @@ export const PdfService = {
       }
     }
 
-    // 2. Mobile Native (iOS / Android)
-    try {
-      const { uri, base64 } = await Print.printToFileAsync({
-        html,
-        base64: true,
-      });
-      return { uri, base64 };
-    } catch (err) {
-      return { uri: '', base64: '' };
+    // 2. Mobile Native (iOS / Android) ONLY
+    if (Platform.OS !== 'web') {
+      try {
+        const { uri, base64 } = await Print.printToFileAsync({
+          html,
+          base64: true,
+        });
+        return { uri, base64 };
+      } catch (err) {
+        return { uri: '', base64: '' };
+      }
     }
+
+    // 3. Web Browser (non-Electron): Never call printToFileAsync because on Web expo-print calls window.print()
+    return { uri: '', base64: '' };
   },
 
   async sharePdf(
@@ -385,43 +391,57 @@ export const PdfService = {
     activitiesByDay: Record<number, Activity[]>,
     companySettings?: Partial<CompanySettings>
   ): Promise<void> {
-    const { uri, base64 } = await this.generatePdfFile(report, user, activitiesByDay, companySettings);
     const cleanName = (user.full_name || 'Utilisateur').replace(/[^a-zA-Z0-9_-]/g, '_');
     const fileName = `Rapport_S${report.week_number}_${report.year}_${cleanName}.pdf`;
 
     // 1. Electron Desktop native file save dialog
-    if (typeof window !== 'undefined' && (window as any).electronAPI?.savePdfDialog && base64) {
-      const res = await (window as any).electronAPI.savePdfDialog(fileName, base64);
-      if (res.success || res.canceled) {
-        return;
+    if (typeof window !== 'undefined' && (window as any).electronAPI?.generatePdf && (window as any).electronAPI?.savePdfDialog) {
+      const { base64 } = await this.generatePdfFile(report, user, activitiesByDay, companySettings);
+      if (base64) {
+        const res = await (window as any).electronAPI.savePdfDialog(fileName, base64);
+        if (res.success || res.canceled) {
+          return;
+        }
       }
     }
 
     // 2. Mobile Sharing API (iOS / Android)
-    if (uri && (await Sharing.isAvailableAsync())) {
-      await Sharing.shareAsync(uri, {
-        UTI: '.pdf',
-        mimeType: 'application/pdf',
-        dialogTitle: fileName,
-      });
-      return;
+    if (Platform.OS !== 'web') {
+      const { uri } = await this.generatePdfFile(report, user, activitiesByDay, companySettings);
+      if (uri && (await Sharing.isAvailableAsync())) {
+        await Sharing.shareAsync(uri, {
+          UTI: '.pdf',
+          mimeType: 'application/pdf',
+          dialogTitle: fileName,
+        });
+        return;
+      }
     }
 
     // 3. Web Browser Download fallback
-    if (typeof window !== 'undefined' && typeof document !== 'undefined' && base64) {
-      try {
-        const byteCharacters = atob(base64);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: 'application/pdf' });
-        const blobUrl = URL.createObjectURL(blob);
+    if (report.pdf_url) {
+      if (typeof window !== 'undefined') {
+        const a = document.createElement('a');
+        a.href = report.pdf_url;
+        a.target = '_blank';
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return;
+      }
+    }
 
+    // Direct Web download as self-contained HTML report if PDF binary isn't natively produced in browser
+    const settings = companySettings || (await SettingsService.getSettings());
+    const html = this.buildHtmlReport(report, user, activitiesByDay, settings);
+    if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+      try {
+        const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+        const blobUrl = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = blobUrl;
-        a.download = fileName;
+        a.download = `Rapport_S${report.week_number}_${report.year}_${cleanName}.html`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);

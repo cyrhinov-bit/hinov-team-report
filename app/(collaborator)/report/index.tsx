@@ -21,6 +21,7 @@ import { PerspectiveSection } from '@/components/report/PerspectiveSection';
 import { ColorLine } from '@/components/ui/ColorLine';
 import { ReportsService } from '@/services/reports';
 import { ActivitiesService } from '@/services/activities';
+import { PdfService } from '@/services/pdf';
 import { supabase, isSupabaseConfigured } from '@/services/supabase';
 import { GeminiService } from '@/services/gemini';
 import { getWeekNumber, getWeekRange, FRENCH_DAYS } from '@/utils/date';
@@ -258,6 +259,8 @@ export default function WeeklyReportScreen() {
     }
   };
 
+  const [submitting, setSubmitting] = useState(false);
+
   const handlePreview = async () => {
     if (!report || !user) return;
     const allActs = flattenActivities();
@@ -282,6 +285,67 @@ export default function WeeklyReportScreen() {
       params: {
         reportData: JSON.stringify(updatedReport),
         activitiesByDayData: JSON.stringify(activitiesByDay),
+      },
+    });
+  };
+
+  const handleSubmitDirect = async () => {
+    if (!report || !user) return;
+
+    if (totalActivities === 0) {
+      showAlert(
+        'Activités requises',
+        'Veuillez ajouter au moins une activité à votre rapport avant de le soumettre.'
+      );
+      return;
+    }
+
+    const isDirector = user.role === 'directeur_admin';
+
+    confirmAction({
+      title: 'Soumission Définitive',
+      message: isDirector
+        ? 'Confirmez-vous la validation et l’archivage de votre rapport hebdomadaire personnel ?'
+        : 'Confirmez-vous la soumission définitive de votre rapport hebdomadaire à la Direction ?',
+      confirmText: 'Confirmer & Soumettre',
+      cancelText: 'Annuler',
+      onConfirm: async () => {
+        setSubmitting(true);
+        try {
+          const allActs = flattenActivities();
+          const updatedReport: WeeklyReport = {
+            ...report,
+            content_snapshot: allActs,
+            difficulties,
+            perspectives,
+            author: user,
+          };
+
+          // Save draft first
+          await ReportsService.saveReportDraft(report.id, {
+            content_snapshot: allActs,
+            difficulties,
+            perspectives,
+            author: user,
+          });
+
+          // Generate PDF headless if available
+          const pdfFile = await PdfService.generatePdfFile(updatedReport, user, activitiesByDay);
+          const res = await ReportsService.submitReport(updatedReport, user, pdfFile.base64);
+
+          setSubmitting(false);
+
+          if (res.success) {
+            showAlert('Succès', res.message || 'Rapport transmis avec succès !', () => {
+              loadReportData(true);
+            });
+          } else {
+            showAlert('Notice', res.error || 'Erreur de transmission');
+          }
+        } catch (err: any) {
+          setSubmitting(false);
+          showAlert('Erreur', err.message || 'Erreur lors de la soumission');
+        }
       },
     });
   };
@@ -415,26 +479,47 @@ export default function WeeklyReportScreen() {
         readOnly={isSubmitted}
       />
 
-      {/* Bottom Floating/Action Buttons */}
-      <View style={styles.bottomActions}>
-        {!isSubmitted && (
+      {/* Bottom Action Buttons */}
+      <View style={styles.bottomActionsContainer}>
+        {!isSubmitted ? (
+          <>
+            <View style={styles.actionRowTop}>
+              <Button
+                title="Enregistrer"
+                onPress={handleSaveDraft}
+                loading={saving}
+                variant="outline"
+                style={{ flex: 1, marginRight: 8 }}
+                icon={<Save size={16} color={COLORS.primary} />}
+              />
+              <Button
+                title="Aperçu & Télécharger"
+                onPress={handlePreview}
+                variant="secondary"
+                style={{ flex: 1.3 }}
+                icon={<Eye size={16} color={COLORS.primaryAccent} />}
+              />
+            </View>
+            <Button
+              title={user?.role === 'directeur_admin' ? "ARCHIVER LE RAPPORT" : "SOUMETTRE MON RAPPORT"}
+              onPress={handleSubmitDirect}
+              loading={submitting}
+              variant="primary"
+              size="lg"
+              style={{ width: '100%', marginTop: 10 }}
+              icon={<Send size={18} color="#FFFFFF" />}
+            />
+          </>
+        ) : (
           <Button
-            title="Enregistrer Brouillon"
-            onPress={handleSaveDraft}
-            loading={saving}
-            variant="outline"
-            style={{ flex: 1, marginRight: 8 }}
-            icon={<Save size={16} color={COLORS.primary} />}
+            title="Consulter l'Aperçu & Télécharger PDF"
+            onPress={handlePreview}
+            variant="primary"
+            size="lg"
+            style={{ width: '100%' }}
+            icon={<Eye size={18} color="#FFFFFF" />}
           />
         )}
-
-        <Button
-          title={isSubmitted ? 'Voir le PDF' : 'Prévisualiser & Soumettre'}
-          onPress={handlePreview}
-          variant="primary"
-          style={{ flex: 1.3 }}
-          icon={<Eye size={16} color="#FFFFFF" />}
-        />
       </View>
     </ScrollView>
   );
@@ -567,9 +652,14 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  bottomActions: {
+  bottomActionsContainer: {
+    marginTop: 18,
+    width: '100%',
+  },
+  actionRowTop: {
     flexDirection: 'row',
-    marginTop: 12,
+    alignItems: 'center',
+    width: '100%',
   },
 });
 

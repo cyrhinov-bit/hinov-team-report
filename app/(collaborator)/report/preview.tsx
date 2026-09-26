@@ -26,6 +26,7 @@ import { FRENCH_DAYS, getWeekNumber, getWeekRange } from '@/utils/date';
 import { confirmAction, showAlert } from '@/utils/alert';
 import {
   Share2,
+  Download,
   Printer,
   Send,
   CheckCircle2,
@@ -211,18 +212,23 @@ export default function ReportPreviewScreen() {
     <View style={styles.container}>
       {/* Top Action Toolbar */}
       <View style={styles.toolbar}>
+        <TouchableOpacity style={styles.toolBtn} onPress={() => router.replace('/(collaborator)/report')}>
+          <ArrowLeft size={15} color={COLORS.textPrimary} />
+          <Text style={[styles.toolBtnText, { color: COLORS.textPrimary }]}>Retour</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.toolBtn} onPress={handleSharePdf}>
-          <Share2 size={16} color={COLORS.primaryAccent} />
-          <Text style={styles.toolBtnText}>Exporter PDF</Text>
+          <Download size={15} color={COLORS.primaryAccent} />
+          <Text style={styles.toolBtnText}>Télécharger PDF</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.toolBtn} onPress={handlePrint}>
-          <Printer size={16} color={COLORS.primaryAccent} />
+          <Printer size={15} color={COLORS.primaryAccent} />
           <Text style={styles.toolBtnText}>Imprimer</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={[styles.toolBtn, { marginLeft: 'auto' }]} onPress={loadData}>
-          <RotateCw size={15} color={COLORS.textSecondary} />
+          <RotateCw size={14} color={COLORS.textSecondary} />
           <Text style={[styles.toolBtnText, { color: COLORS.textSecondary }]}>Actualiser</Text>
         </TouchableOpacity>
       </View>
@@ -350,20 +356,36 @@ export default function ReportPreviewScreen() {
         </View>
       </ScrollView>
 
-      {/* Bottom Submit Action */}
-      {!isSubmitted && (
-        <View style={styles.bottomBar}>
+      {/* Bottom Bar Actions */}
+      <View style={styles.bottomBar}>
+        {!isSubmitted ? (
+          <>
+            <Button
+              title="Retour à l'édition"
+              onPress={() => router.replace('/(collaborator)/report')}
+              variant="outline"
+              style={{ flex: 1, marginRight: 10 }}
+              icon={<ArrowLeft size={16} color={COLORS.primary} />}
+            />
+            <Button
+              title={isDirector ? 'ARCHIVER LE RAPPORT' : 'SOUMETTRE LE RAPPORT'}
+              onPress={handleSubmit}
+              loading={submitting}
+              variant="primary"
+              style={{ flex: 1.4 }}
+              icon={<Send size={16} color="#FFFFFF" />}
+            />
+          </>
+        ) : (
           <Button
-            title={isDirector ? 'ARCHIVER MON RAPPORT' : 'SOUMETTRE & ENVOYER AU DIRECTEUR'}
-            onPress={handleSubmit}
-            loading={submitting}
+            title="Retour à Mon Rapport"
+            onPress={() => router.replace('/(collaborator)/report')}
             variant="primary"
-            size="lg"
             style={{ width: '100%' }}
-            icon={<Send size={18} color="#FFFFFF" />}
+            icon={<ArrowLeft size={16} color="#FFFFFF" />}
           />
-        </View>
-      )}
+        )}
+      </View>
     </View>
   );
 }
@@ -647,6 +669,8 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
   },
   bottomBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: COLORS.surface,
     padding: 14,
     borderTopWidth: 1,
