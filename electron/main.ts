@@ -257,6 +257,45 @@ ipcMain.handle('save-pdf-dialog', async (_event, { defaultFileName, base64Data }
   }
 });
 
+ipcMain.handle('generate-pdf', async (_event, { html }: { html: string }) => {
+  let printWin: BrowserWindow | null = new BrowserWindow({
+    show: false,
+    webPreferences: { nodeIntegration: false, contextIsolation: true },
+  });
+  try {
+    await printWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+    const pdfBuffer = await printWin.webContents.printToPDF({
+      pageSize: 'A4',
+      printBackground: true,
+      margins: { top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 },
+    });
+    printWin.close();
+    printWin = null;
+    return { success: true, base64: pdfBuffer.toString('base64') };
+  } catch (err: any) {
+    if (printWin && !printWin.isDestroyed()) printWin.close();
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('print-html', async (_event, { html }: { html: string }) => {
+  let printWin: BrowserWindow | null = new BrowserWindow({
+    show: false,
+    webPreferences: { nodeIntegration: false, contextIsolation: true },
+  });
+  try {
+    await printWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+    printWin.webContents.print({ silent: false, printBackground: true });
+    setTimeout(() => {
+      if (printWin && !printWin.isDestroyed()) printWin.close();
+    }, 15000);
+    return { success: true };
+  } catch (err: any) {
+    if (printWin && !printWin.isDestroyed()) printWin.close();
+    return { success: false, error: err.message };
+  }
+});
+
 ipcMain.on('show-notification', (_event, { title, body }: { title: string; body: string }) => {
   if (Notification.isSupported()) {
     new Notification({

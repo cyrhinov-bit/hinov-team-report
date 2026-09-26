@@ -352,13 +352,31 @@ export const PdfService = {
     activitiesByDay: Record<number, Activity[]>,
     companySettings?: Partial<CompanySettings>
   ): Promise<{ uri: string; base64?: string }> {
-    const settings = companySettings || await SettingsService.getSettings();
+    const settings = companySettings || (await SettingsService.getSettings());
     const html = this.buildHtmlReport(report, user, activitiesByDay, settings);
-    const { uri, base64 } = await Print.printToFileAsync({
-      html,
-      base64: true,
-    });
-    return { uri, base64 };
+
+    // 1. Electron Desktop headless PDF generation
+    if (typeof window !== 'undefined' && (window as any).electronAPI?.generatePdf) {
+      try {
+        const res = await (window as any).electronAPI.generatePdf(html);
+        if (res.success && res.base64) {
+          return { uri: '', base64: res.base64 };
+        }
+      } catch (err) {
+        console.warn('Electron PDF generation fallback:', err);
+      }
+    }
+
+    // 2. Mobile Native (iOS / Android)
+    try {
+      const { uri, base64 } = await Print.printToFileAsync({
+        html,
+        base64: true,
+      });
+      return { uri, base64 };
+    } catch (err) {
+      return { uri: '', base64: '' };
+    }
   },
 
   async sharePdf(
@@ -373,17 +391,14 @@ export const PdfService = {
 
     // 1. Electron Desktop native file save dialog
     if (typeof window !== 'undefined' && (window as any).electronAPI?.savePdfDialog && base64) {
-      const res = await (window as any).electronAPI.savePdfDialog({
-        defaultFileName: fileName,
-        base64Data: base64,
-      });
+      const res = await (window as any).electronAPI.savePdfDialog(fileName, base64);
       if (res.success || res.canceled) {
         return;
       }
     }
 
     // 2. Mobile Sharing API (iOS / Android)
-    if (await Sharing.isAvailableAsync()) {
+    if (uri && (await Sharing.isAvailableAsync())) {
       await Sharing.shareAsync(uri, {
         UTI: '.pdf',
         mimeType: 'application/pdf',
@@ -423,8 +438,41 @@ export const PdfService = {
     activitiesByDay: Record<number, Activity[]>,
     companySettings?: Partial<CompanySettings>
   ): Promise<void> {
-    const settings = companySettings || await SettingsService.getSettings();
+    const settings = companySettings || (await SettingsService.getSettings());
     const html = this.buildHtmlReport(report, user, activitiesByDay, settings);
+
+    // 1. Electron Desktop print
+    if (typeof window !== 'undefined' && (window as any).electronAPI?.printHtml) {
+      await (window as any).electronAPI.printHtml(html);
+      return;
+    }
+
+    // 2. Web Browser isolated print iframe
+    if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      document.body.appendChild(iframe);
+
+      const doc = iframe.contentWindow?.document;
+      if (doc) {
+        doc.open();
+        doc.write(html);
+        doc.close();
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+        }, 2000);
+        return;
+      }
+    }
+
+    // 3. Mobile Native
     await Print.printAsync({ html });
   },
 };
