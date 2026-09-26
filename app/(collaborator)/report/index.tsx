@@ -57,10 +57,12 @@ export default function WeeklyReportScreen() {
   const [difficulties, setDifficulties] = useState<string[]>([]);
   const [perspectives, setPerspectives] = useState<string[]>([]);
 
-  const loadReportData = async () => {
+  const loadReportData = async (showSpinner = false) => {
     if (!user) return;
     try {
-      setLoading(true);
+      if (showSpinner) {
+        setLoading(true);
+      }
       const rep = await ReportsService.getOrCreateWeeklyDraft(user, week, year);
       setReport(rep);
       setDifficulties(rep.difficulties || []);
@@ -96,7 +98,7 @@ export default function WeeklyReportScreen() {
 
   useEffect(() => {
     if (user) {
-      loadReportData();
+      loadReportData(true);
     }
 
     if (user && isSupabaseConfigured) {
@@ -111,7 +113,7 @@ export default function WeeklyReportScreen() {
             filter: `user_id=eq.${user.id}`,
           },
           () => {
-            loadReportData();
+            loadReportData(false);
           }
         )
         .on(
@@ -123,7 +125,7 @@ export default function WeeklyReportScreen() {
             filter: `user_id=eq.${user.id}`,
           },
           () => {
-            loadReportData();
+            loadReportData(false);
           }
         )
         .subscribe();
@@ -137,14 +139,14 @@ export default function WeeklyReportScreen() {
   useFocusEffect(
     useCallback(() => {
       if (user) {
-        loadReportData();
+        loadReportData(false);
       }
     }, [user])
   );
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadReportData();
+    await loadReportData(false);
     setRefreshing(false);
   };
 

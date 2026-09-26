@@ -74,18 +74,6 @@ export const ReportsService = {
 
       if (existing) {
         existing.author = user;
-        if (existing.status === 'brouillon') {
-          // Update draft with fresh activities snapshot
-          await supabase
-            .from('reports')
-            .update({
-              content_snapshot: activities,
-              start_date: range.startDate,
-              end_date: range.endDate,
-            })
-            .eq('id', existing.id);
-          existing.content_snapshot = activities;
-        }
         return existing;
       }
 
