@@ -1,3 +1,5 @@
+// @ts-nocheck
+/// <reference lib="deno.ns" />
 // Supabase Edge Function: generate-report-pdf
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
@@ -287,7 +289,7 @@ function generateCorporateHtml(reportData: any): string {
   `;
 }
 
-serve(async (req) => {
+serve(async (req: any) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
