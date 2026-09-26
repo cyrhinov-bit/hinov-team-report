@@ -57,11 +57,16 @@ export const ReportsService = {
     }
 
     try {
-      // 1. Look for existing report for this user and week
+      // 1. Get current Supabase Auth user to ensure auth.uid() alignment with RLS
+      const { data: authData } = await supabase.auth.getUser();
+      const currentAuthUser = authData?.user;
+      const effectiveUserId = currentAuthUser?.id || user.id;
+
+      // 2. Look for existing report for this user and week
       const { data: existing, error: fetchErr } = await supabase
         .from('reports')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', effectiveUserId)
         .eq('week_number', w)
         .eq('year', y)
         .maybeSingle();
@@ -70,19 +75,36 @@ export const ReportsService = {
         console.warn('Warning fetching existing report:', fetchErr.message);
       }
 
-      const activities = await ActivitiesService.getActivitiesForUser(user.id, range.startDate, range.endDate);
+      const activities = await ActivitiesService.getActivitiesForUser(effectiveUserId, range.startDate, range.endDate);
 
       if (existing) {
         existing.author = user;
         return existing;
       }
 
-      // 2. Create new draft in Supabase
+      // If user is not yet logged into Supabase Auth, return local in-memory draft
+      if (!currentAuthUser) {
+        return {
+          id: `rep-draft-${w}-${y}-${effectiveUserId}`,
+          user_id: effectiveUserId,
+          week_number: w,
+          year: y,
+          start_date: range.startDate,
+          end_date: range.endDate,
+          status: 'brouillon',
+          content_snapshot: activities,
+          difficulties: [],
+          perspectives: [],
+          author: user,
+        };
+      }
+
+      // 3. Create new draft in Supabase
       const { data: created, error: insertError } = await supabase
         .from('reports')
         .insert([
           {
-            user_id: user.id,
+            user_id: effectiveUserId,
             week_number: w,
             year: y,
             start_date: range.startDate,
@@ -97,12 +119,12 @@ export const ReportsService = {
         .single();
 
       if (insertError) {
-        console.error('Error creating report draft in Supabase:', insertError);
+        console.warn('Notice creating report draft in Supabase (will use draft):', insertError.message);
         // In case of conflict, retry fetching
         const { data: retryReport } = await supabase
           .from('reports')
           .select('*')
-          .eq('user_id', user.id)
+          .eq('user_id', effectiveUserId)
           .eq('week_number', w)
           .eq('year', y)
           .maybeSingle();
@@ -111,17 +133,31 @@ export const ReportsService = {
           retryReport.author = user;
           return retryReport;
         }
-        throw insertError;
+
+        // Return working draft if RLS or constraint temporarily restricts insert
+        return {
+          id: `rep-draft-${w}-${y}-${effectiveUserId}`,
+          user_id: effectiveUserId,
+          week_number: w,
+          year: y,
+          start_date: range.startDate,
+          end_date: range.endDate,
+          status: 'brouillon',
+          content_snapshot: activities,
+          difficulties: [],
+          perspectives: [],
+          author: user,
+        };
       }
 
       created.author = user;
       return created;
     } catch (err: any) {
-      console.error('Error in getOrCreateWeeklyDraft:', err);
+      console.warn('Notice in getOrCreateWeeklyDraft fallback:', err?.message || err);
       // Fallback object with user and activities
       const activities = await ActivitiesService.getActivitiesForUser(user.id, range.startDate, range.endDate).catch(() => []);
       return {
-        id: `rep-fallback-${w}`,
+        id: `rep-fallback-${w}-${y}-${user.id}`,
         user_id: user.id,
         week_number: w,
         year: y,
@@ -234,18 +270,34 @@ export const ReportsService = {
         }
       }
 
-      // 3. Update report in Supabase
-      const { error: updateError } = await supabase
-        .from('reports')
-        .update({
-          status: 'soumis',
-          submitted_at: new Date().toISOString(),
-          content_snapshot: report.content_snapshot || [],
-          difficulties: report.difficulties || [],
-          perspectives: report.perspectives || [],
-          ...(uploadedPdfUrl ? { pdf_url: uploadedPdfUrl } : {}),
-        })
-        .eq('id', report.id);
+      // 3. Update or Upsert report in Supabase
+      const reportPayload = {
+        user_id: user.id,
+        week_number: report.week_number,
+        year: report.year,
+        start_date: report.start_date,
+        end_date: report.end_date,
+        status: 'soumis' as ReportStatus,
+        submitted_at: new Date().toISOString(),
+        content_snapshot: report.content_snapshot || [],
+        difficulties: report.difficulties || [],
+        perspectives: report.perspectives || [],
+        ...(uploadedPdfUrl ? { pdf_url: uploadedPdfUrl } : {}),
+      };
+
+      let updateError = null;
+      if (report.id && !report.id.startsWith('rep-')) {
+        const { error } = await supabase
+          .from('reports')
+          .update(reportPayload)
+          .eq('id', report.id);
+        updateError = error;
+      } else {
+        const { error } = await supabase
+          .from('reports')
+          .upsert(reportPayload, { onConflict: 'user_id,week_number,year' });
+        updateError = error;
+      }
 
       if (updateError) {
         return { success: false, error: updateError.message };
