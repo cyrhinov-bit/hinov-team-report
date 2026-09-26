@@ -36,6 +36,28 @@ export const ActivitiesService = {
     }
   },
 
+  async getActivityById(id: string): Promise<Activity | null> {
+    if (!isSupabaseConfigured) {
+      const raw = await AsyncStorage.getItem(ACTIVITIES_STORAGE_KEY);
+      const list: Activity[] = raw ? JSON.parse(raw) : [];
+      return list.find((a) => a.id === id) || null;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('activities')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    } catch (err: any) {
+      console.error('Error fetching activity by id:', err);
+      return null;
+    }
+  },
+
   async createActivity(activity: Omit<Activity, 'id' | 'is_locked' | 'created_at' | 'updated_at'>): Promise<{ activity: Activity | null; error?: string }> {
     if (!isSupabaseConfigured) {
       const raw = await AsyncStorage.getItem(ACTIVITIES_STORAGE_KEY);

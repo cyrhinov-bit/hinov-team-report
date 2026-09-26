@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/Badge';
 import { AdminService } from '@/services/admin';
 import { ReportsService } from '@/services/reports';
 import { PdfService } from '@/services/pdf';
+import { supabase, isSupabaseConfigured } from '@/services/supabase';
 import { getWeekNumber, getWeekRange } from '@/utils/date';
 import { UserProfile, WeeklyReport, Activity } from '@/types';
 import {
@@ -45,6 +46,42 @@ export default function AdminReportsScreen() {
     const weekReports = await ReportsService.getAllReportsForAdmin(week, year);
     setReports(weekReports);
   };
+
+  useEffect(() => {
+    loadData();
+
+    if (isSupabaseConfigured) {
+      const channel = supabase
+        .channel('rt:admin_reports')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'reports',
+          },
+          () => {
+            loadData();
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'profiles',
+          },
+          () => {
+            loadData();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [currentUser]);
 
   useFocusEffect(
     useCallback(() => {

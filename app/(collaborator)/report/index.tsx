@@ -20,6 +20,7 @@ import { DifficultySection } from '@/components/report/DifficultySection';
 import { PerspectiveSection } from '@/components/report/PerspectiveSection';
 import { ReportsService } from '@/services/reports';
 import { ActivitiesService } from '@/services/activities';
+import { supabase, isSupabaseConfigured } from '@/services/supabase';
 import { GeminiService } from '@/services/gemini';
 import { getWeekNumber, getWeekRange, FRENCH_DAYS } from '@/utils/date';
 import { Activity, WeeklyReport } from '@/types';
@@ -95,6 +96,40 @@ export default function WeeklyReportScreen() {
   useEffect(() => {
     if (user) {
       loadReportData();
+    }
+
+    if (user && isSupabaseConfigured) {
+      const channel = supabase
+        .channel(`rt:report:${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'activities',
+            filter: `user_id=eq.${user.id}`,
+          },
+          () => {
+            loadReportData();
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'reports',
+            filter: `user_id=eq.${user.id}`,
+          },
+          () => {
+            loadReportData();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [user]);
 

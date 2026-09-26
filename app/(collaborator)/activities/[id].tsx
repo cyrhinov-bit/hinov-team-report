@@ -41,8 +41,7 @@ export default function EditActivityScreen() {
   useEffect(() => {
     const fetchAct = async () => {
       if (!user || !id) return;
-      const acts = await ActivitiesService.getActivitiesForUser(user.id);
-      const found = acts.find((a) => a.id === id);
+      const found = await ActivitiesService.getActivityById(id);
       if (found) {
         setActivity(found);
         setDate(found.date);

@@ -14,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { COLORS } from '@/constants/colors';
 import { confirmAction } from '@/utils/alert';
 import { ActivitiesService } from '@/services/activities';
+import { supabase, isSupabaseConfigured } from '@/services/supabase';
 import { DaySection } from '@/components/report/DaySection';
 import { Activity } from '@/types';
 import { getWeekNumber, getWeekRange, FRENCH_DAYS } from '@/utils/date';
@@ -46,6 +47,28 @@ export default function ActivitiesListScreen() {
   useEffect(() => {
     if (user) {
       loadActivities();
+    }
+
+    if (user && isSupabaseConfigured) {
+      const channel = supabase
+        .channel(`rt:activities:${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'activities',
+            filter: `user_id=eq.${user.id}`,
+          },
+          () => {
+            loadActivities();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [user]);
 

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import { COLORS } from '@/constants/colors';
 import { UserCard } from '@/components/admin/UserCard';
 import { TempPasswordModal } from '@/components/admin/TempPasswordModal';
 import { AdminService } from '@/services/admin';
+import { supabase, isSupabaseConfigured } from '@/services/supabase';
 import { UserProfile, AppRole } from '@/types';
 import { confirmAction, showAlert } from '@/utils/alert';
 import { Search, UserPlus, Filter, X } from 'lucide-react-native';
@@ -36,6 +37,31 @@ export default function AdminUsersScreen() {
     const list = await AdminService.getAllUsers();
     setUsers(list);
   };
+
+  useEffect(() => {
+    loadUsers();
+
+    if (isSupabaseConfigured) {
+      const channel = supabase
+        .channel('rt:admin_users')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'profiles',
+          },
+          () => {
+            loadUsers();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
