@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   ViewStyle,
   TextStyle,
+  View,
 } from 'react-native';
 import { COLORS } from '@/constants/colors';
 
@@ -13,7 +14,7 @@ interface ButtonProps {
   key?: React.Key;
   title: string;
   onPress: () => void;
-  variant?: 'primary' | 'secondary' | 'outline' | 'danger' | 'ai' | 'ghost';
+  variant?: 'primary' | 'accent' | 'secondary' | 'outline' | 'danger' | 'success' | 'ai' | 'ghost' | 'gold';
   size?: 'sm' | 'md' | 'lg';
   loading?: boolean;
   disabled?: boolean;
@@ -25,7 +26,7 @@ interface ButtonProps {
 export const Button: React.FC<ButtonProps> = ({
   title,
   onPress,
-  variant = 'primary',
+  variant = 'accent',
   size = 'md',
   loading = false,
   disabled = false,
@@ -36,6 +37,8 @@ export const Button: React.FC<ButtonProps> = ({
   const getBackgroundColor = () => {
     if (disabled) return COLORS.surfaceMuted;
     switch (variant) {
+      case 'accent':
+        return COLORS.primaryAccent;
       case 'primary':
         return COLORS.primary;
       case 'secondary':
@@ -44,26 +47,33 @@ export const Button: React.FC<ButtonProps> = ({
         return 'transparent';
       case 'danger':
         return COLORS.danger;
+      case 'success':
+        return COLORS.success;
       case 'ai':
         return COLORS.ai;
+      case 'gold':
+        return COLORS.gold;
       case 'ghost':
         return 'transparent';
       default:
-        return COLORS.primary;
+        return COLORS.primaryAccent;
     }
   };
 
   const getTextColor = () => {
     if (disabled) return COLORS.textMuted;
     switch (variant) {
+      case 'accent':
       case 'primary':
       case 'danger':
+      case 'success':
       case 'ai':
+      case 'gold':
         return COLORS.textWhite;
       case 'secondary':
         return COLORS.textPrimary;
       case 'outline':
-        return COLORS.primary;
+        return COLORS.primaryAccent;
       case 'ghost':
         return COLORS.primaryAccent;
       default:
@@ -76,9 +86,9 @@ export const Button: React.FC<ButtonProps> = ({
       case 'sm':
         return { paddingVertical: 8, paddingHorizontal: 14, minHeight: 36 };
       case 'lg':
-        return { paddingVertical: 16, paddingHorizontal: 24, minHeight: 52 };
+        return { paddingVertical: 14, paddingHorizontal: 22, minHeight: 48 };
       default:
-        return { paddingVertical: 12, paddingHorizontal: 18, minHeight: 46 };
+        return { paddingVertical: 11, paddingHorizontal: 18, minHeight: 42 };
     }
   };
 
@@ -93,30 +103,20 @@ export const Button: React.FC<ButtonProps> = ({
         {
           backgroundColor: getBackgroundColor(),
           borderWidth: variant === 'outline' ? 1.5 : 0,
-          borderColor: variant === 'outline' ? COLORS.primary : 'transparent',
+          borderColor: variant === 'outline' ? COLORS.primaryAccent : 'transparent',
         },
         style,
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={getTextColor()} size="small" />
+        <ActivityIndicator size="small" color={getTextColor()} />
       ) : (
-        <>
-          {icon && <>{icon}</>}
-          <Text
-            style={[
-              styles.text,
-              {
-                color: getTextColor(),
-                fontSize: size === 'sm' ? 13 : size === 'lg' ? 16 : 14,
-                marginLeft: icon ? 8 : 0,
-              },
-              textStyle,
-            ]}
-          >
+        <View style={styles.inner}>
+          {icon && <View style={styles.iconWrapper}>{icon}</View>}
+          <Text style={[styles.text, { color: getTextColor() }, textStyle]}>
             {title}
           </Text>
-        </>
+        </View>
       )}
     </TouchableOpacity>
   );
@@ -124,14 +124,22 @@ export const Button: React.FC<ButtonProps> = ({
 
 const styles = StyleSheet.create({
   base: {
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
+  inner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 10,
+  },
+  iconWrapper: {
+    marginRight: 8,
   },
   text: {
+    fontSize: 14,
     fontWeight: '700',
     letterSpacing: 0.2,
   },
 });
-

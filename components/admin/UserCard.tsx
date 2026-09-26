@@ -1,10 +1,10 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { UserProfile } from '@/types';
-import { COLORS } from '@/constants/colors';
+import { COLORS, SHADOWS } from '@/constants/colors';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
-import { KeyRound, Power, ChevronRight, Mail } from 'lucide-react-native';
+import { KeyRound, Power, ChevronRight, Mail, Building2 } from 'lucide-react-native';
 
 interface UserCardProps {
   key?: React.Key;
@@ -27,7 +27,7 @@ export const UserCard: React.FC<UserCardProps> = ({
       activeOpacity={0.8}
     >
       <View style={styles.topRow}>
-        <Avatar url={user.avatar_url} name={user.full_name} size={44} />
+        <Avatar url={user.avatar_url} name={user.full_name} size={46} showBorder />
         <View style={styles.infoCol}>
           <View style={styles.nameRow}>
             <Text style={styles.name} numberOfLines={1}>
@@ -38,19 +38,24 @@ export const UserCard: React.FC<UserCardProps> = ({
           <Text style={styles.jobTitle} numberOfLines={1}>
             {user.job_title || 'Fonction non renseignée'}
           </Text>
-          <Text style={styles.department} numberOfLines={1}>
-            🏢 {user.department || 'Général'}
-          </Text>
+          <View style={styles.deptRow}>
+            <Building2 size={12} color={COLORS.textSecondary} />
+            <Text style={styles.department} numberOfLines={1}>
+              {user.department || 'Général'}
+            </Text>
+          </View>
         </View>
       </View>
 
       <View style={styles.emailRow}>
         <Mail size={13} color={COLORS.textSecondary} />
-        <Text style={styles.emailText}>{user.email}</Text>
-        <View style={[styles.statusDot, { backgroundColor: user.is_active ? COLORS.success : COLORS.danger }]} />
-        <Text style={[styles.statusText, { color: user.is_active ? COLORS.success : COLORS.danger }]}>
-          {user.is_active ? 'Actif' : 'Inactif'}
-        </Text>
+        <Text style={styles.emailText} numberOfLines={1}>{user.email}</Text>
+        <View style={styles.statusBadge}>
+          <View style={[styles.statusDot, { backgroundColor: user.is_active ? COLORS.success : COLORS.danger }]} />
+          <Text style={[styles.statusText, { color: user.is_active ? COLORS.success : COLORS.danger }]}>
+            {user.is_active ? 'Actif' : 'Inactif'}
+          </Text>
+        </View>
       </View>
 
       <View style={styles.footerActions}>
@@ -62,7 +67,7 @@ export const UserCard: React.FC<UserCardProps> = ({
               onResetPassword();
             }}
           >
-            <KeyRound size={14} color={COLORS.primaryAccent} />
+            <KeyRound size={13} color={COLORS.primaryAccent} />
             <Text style={styles.actionText}>Réinitialiser MDP</Text>
           </TouchableOpacity>
         )}
@@ -75,7 +80,7 @@ export const UserCard: React.FC<UserCardProps> = ({
               onToggleActive();
             }}
           >
-            <Power size={14} color={user.is_active ? COLORS.danger : COLORS.success} />
+            <Power size={13} color={user.is_active ? COLORS.danger : COLORS.success} />
             <Text style={[styles.actionText, { color: user.is_active ? COLORS.danger : COLORS.success }]}>
               {user.is_active ? 'Désactiver' : 'Activer'}
             </Text>
@@ -91,69 +96,76 @@ export const UserCard: React.FC<UserCardProps> = ({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.surface,
-    borderRadius: 12,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 14,
-    marginBottom: 10,
+    padding: 16,
+    marginBottom: 12,
+    ...SHADOWS.sm,
   },
   inactiveContainer: {
     opacity: 0.75,
-    backgroundColor: '#F8FAFC',
-    borderColor: '#E2E8F0',
+    backgroundColor: '#FAFBFD',
   },
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   infoCol: {
-    flex: 1,
     marginLeft: 12,
+    flex: 1,
   },
   nameRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 2,
+    justifyContent: 'space-between',
+    marginBottom: 3,
   },
   name: {
     fontSize: 15,
     fontWeight: '700',
     color: COLORS.textPrimary,
     flex: 1,
-    marginRight: 6,
+    marginRight: 8,
   },
   jobTitle: {
-    fontSize: 12.5,
+    fontSize: 13,
     color: COLORS.textSecondary,
-    fontWeight: '500',
+    marginBottom: 3,
+  },
+  deptRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   department: {
-    fontSize: 11.5,
+    fontSize: 12,
     color: COLORS.textMuted,
-    marginTop: 2,
   },
   emailRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surfaceSubtle,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    marginBottom: 10,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: COLORS.surfaceMuted,
+    gap: 6,
   },
   emailText: {
     fontSize: 12,
     color: COLORS.textSecondary,
-    marginLeft: 6,
     flex: 1,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   statusDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    marginRight: 4,
   },
   statusText: {
     fontSize: 11,
@@ -163,23 +175,22 @@ const styles = StyleSheet.create({
   footerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    paddingTop: 8,
+    marginTop: 10,
   },
   actionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 6,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: COLORS.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 5,
   },
   actionText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: COLORS.primaryAccent,
-    marginLeft: 4,
   },
 });
-

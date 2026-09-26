@@ -6,7 +6,7 @@ interface CardProps {
   key?: React.Key;
   children?: React.ReactNode;
   style?: ViewStyle;
-  variant?: 'elevated' | 'outlined' | 'subtle';
+  variant?: 'elevated' | 'outlined' | 'subtle' | 'dark';
 }
 
 export const Card: React.FC<CardProps> = ({
@@ -21,6 +21,7 @@ export const Card: React.FC<CardProps> = ({
         variant === 'elevated' && styles.elevated,
         variant === 'outlined' && styles.outlined,
         variant === 'subtle' && styles.subtle,
+        variant === 'dark' && styles.dark,
         style,
       ]}
     >
@@ -32,17 +33,17 @@ export const Card: React.FC<CardProps> = ({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.surface,
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 10,
+    padding: 18,
+    marginBottom: 14,
   },
   elevated: {
-    ...SHADOWS.md,
+    ...SHADOWS.sm,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: COLORS.border,
   },
   outlined: {
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: COLORS.border,
   },
   subtle: {
@@ -50,5 +51,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
+  dark: {
+    backgroundColor: COLORS.primary,
+    borderWidth: 1,
+    borderColor: COLORS.sidebarBorder,
+  },
 });
-

@@ -8,7 +8,8 @@ interface StatsCardProps {
   value: string | number;
   subtitle?: string;
   icon: React.ReactNode;
-  variant?: 'primary' | 'success' | 'warning' | 'ai';
+  variant?: 'primary' | 'success' | 'warning' | 'ai' | 'gold';
+  trend?: string;
 }
 
 export const StatsCard: React.FC<StatsCardProps> = ({
@@ -17,31 +18,40 @@ export const StatsCard: React.FC<StatsCardProps> = ({
   subtitle,
   icon,
   variant = 'primary',
+  trend,
 }) => {
-  const getBadgeColor = () => {
+  const getTheme = () => {
     switch (variant) {
       case 'success':
-        return { bg: COLORS.successLight, text: COLORS.success };
+        return { bg: COLORS.successLight, text: COLORS.success, borderTop: COLORS.success };
       case 'warning':
-        return { bg: COLORS.warningLight, text: '#B45309' };
+        return { bg: COLORS.warningLight, text: COLORS.warning, borderTop: COLORS.warning };
       case 'ai':
-        return { bg: COLORS.aiLight, text: COLORS.ai };
+        return { bg: COLORS.aiLight, text: COLORS.ai, borderTop: COLORS.ai };
+      case 'gold':
+        return { bg: COLORS.goldLight, text: '#B7791F', borderTop: COLORS.gold };
       default:
-        return { bg: '#EFF6FF', text: COLORS.primaryAccent };
+        return { bg: '#EBF5FB', text: COLORS.primaryAccent, borderTop: COLORS.primaryAccent };
     }
   };
 
-  const badgeStyle = getBadgeColor();
+  const theme = getTheme();
 
   return (
-    <View style={styles.card}>
-      <View style={styles.header}>
-        <View style={[styles.iconWrapper, { backgroundColor: badgeStyle.bg }]}>
+    <View style={[styles.card, { borderTopColor: theme.borderTop }]}>
+      <View style={styles.topRow}>
+        <View style={[styles.iconBox, { backgroundColor: theme.bg }]}>
           {icon}
         </View>
-        <Text style={styles.title}>{title}</Text>
+        {Boolean(trend) && (
+          <View style={[styles.trendBadge, { backgroundColor: theme.bg }]}>
+            <Text style={[styles.trendText, { color: theme.text }]}>{trend}</Text>
+          </View>
+        )}
       </View>
+
       <Text style={styles.value}>{value}</Text>
+      <Text style={styles.title}>{title}</Text>
       {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
     </View>
   );
@@ -50,44 +60,56 @@ export const StatsCard: React.FC<StatsCardProps> = ({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.surface,
-    borderRadius: 14,
-    padding: 14,
+    borderRadius: 8,
+    padding: 16,
     ...SHADOWS.sm,
     borderWidth: 1,
     borderColor: COLORS.border,
+    borderTopWidth: 3,
     flex: 1,
     minWidth: 140,
     marginHorizontal: 4,
-    marginBottom: 10,
+    marginBottom: 12,
   },
-  header: {
+  topRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
-  iconWrapper: {
-    width: 32,
-    height: 32,
+  iconBox: {
+    width: 38,
+    height: 38,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 8,
+  },
+  trendBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  trendText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  value: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+    letterSpacing: -0.5,
   },
   title: {
     fontSize: 12,
     fontWeight: '600',
     color: COLORS.textSecondary,
-    flex: 1,
-  },
-  value: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
+    marginTop: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   subtitle: {
     fontSize: 11,
     color: COLORS.textMuted,
-    marginTop: 2,
+    marginTop: 4,
   },
 });
-

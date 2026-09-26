@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
-import { COLORS } from '@/constants/colors';
+import { COLORS, SHADOWS } from '@/constants/colors';
 import { AlertTriangle, Plus, Trash2, Edit3, Check } from 'lucide-react-native';
-import { Button } from '@/components/ui/Button';
 
 interface DifficultySectionProps {
   key?: React.Key;
@@ -46,22 +45,26 @@ export const DifficultySection: React.FC<DifficultySectionProps> = ({
 
   return (
     <View style={styles.container}>
-      <View style={styles.titleRow}>
+      <View style={styles.header}>
         <View style={styles.titleWithIcon}>
-          <AlertTriangle size={18} color="#F59E0B" />
+          <View style={styles.iconCircle}>
+            <AlertTriangle size={16} color={COLORS.warning} />
+          </View>
           <Text style={styles.sectionTitle}>Difficultés Rencontrées</Text>
         </View>
-        <Text style={styles.badgeCount}>{difficulties.length}</Text>
+        <View style={styles.badgeCount}>
+          <Text style={styles.badgeText}>{difficulties.length}</Text>
+        </View>
       </View>
 
       <Text style={styles.subtitle}>
-        Avez-vous rencontré des obstacles, blocages ou dépendances cette semaine ?
+        Obstacles techniques, retards ou dépendances rencontrés au cours de la semaine.
       </Text>
 
       {difficulties.length === 0 ? (
         <View style={styles.emptyBox}>
           <Text style={styles.emptyText}>
-            Aucune difficulté signalée. (Facultatif)
+            Aucune difficulté signalée cette semaine.
           </Text>
         </View>
       ) : (
@@ -81,7 +84,7 @@ export const DifficultySection: React.FC<DifficultySectionProps> = ({
               </View>
             ) : (
               <>
-                <Text style={styles.bullet}>⚠</Text>
+                <View style={styles.bulletDot} />
                 <Text style={styles.itemText}>{item}</Text>
                 {!readOnly && (
                   <View style={styles.itemActions}>
@@ -89,13 +92,13 @@ export const DifficultySection: React.FC<DifficultySectionProps> = ({
                       onPress={() => startEdit(idx)}
                       style={styles.actionBtn}
                     >
-                      <Edit3 size={14} color={COLORS.textSecondary} />
+                      <Edit3 size={13} color={COLORS.primaryAccent} />
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => handleRemove(idx)}
-                      style={styles.actionBtn}
+                      style={[styles.actionBtn, { borderColor: '#FADBD8' }]}
                     >
-                      <Trash2 size={14} color={COLORS.danger} />
+                      <Trash2 size={13} color={COLORS.danger} />
                     </TouchableOpacity>
                   </View>
                 )}
@@ -106,21 +109,22 @@ export const DifficultySection: React.FC<DifficultySectionProps> = ({
       )}
 
       {!readOnly && (
-        <View style={styles.inputRow}>
+        <View style={styles.addRow}>
           <TextInput
-            placeholder="Ajouter une difficulté rencontrée..."
+            placeholder="Ajouter une difficulté ou point de blocage..."
             placeholderTextColor={COLORS.textMuted}
             value={newItem}
             onChangeText={setNewItem}
-            style={styles.textInput}
             onSubmitEditing={handleAdd}
+            style={styles.input}
           />
           <TouchableOpacity
+            style={[styles.addBtn, !newItem.trim() && styles.addBtnDisabled]}
             onPress={handleAdd}
-            style={[styles.addBtn, !newItem.trim() && styles.disabledBtn]}
             disabled={!newItem.trim()}
           >
-            <Plus size={18} color="#FFFFFF" />
+            <Plus size={16} color="#FFFFFF" />
+            <Text style={styles.addBtnText}>Ajouter</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -131,129 +135,158 @@ export const DifficultySection: React.FC<DifficultySectionProps> = ({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.surface,
-    borderRadius: 12,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
+    borderTopWidth: 3,
+    borderTopColor: COLORS.warning,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 14,
+    ...SHADOWS.sm,
   },
-  titleRow: {
+  header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    justifyContent: 'space-between',
+    marginBottom: 6,
   },
   titleWithIcon: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+  },
+  iconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: COLORS.warningLight,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
-    color: COLORS.primary,
-    marginLeft: 8,
+    color: COLORS.textPrimary,
   },
   badgeCount: {
-    backgroundColor: COLORS.warningLight,
-    color: '#B45309',
-    fontSize: 11,
-    fontWeight: '700',
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 6,
+    borderRadius: 12,
+    backgroundColor: COLORS.warningLight,
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.warning,
   },
   subtitle: {
-    fontSize: 12.5,
+    fontSize: 12,
     color: COLORS.textSecondary,
     marginBottom: 12,
+    lineHeight: 16,
   },
   emptyBox: {
-    backgroundColor: COLORS.surfaceSubtle,
-    borderRadius: 8,
+    backgroundColor: '#FAFBFD',
+    borderRadius: 6,
     padding: 12,
+    borderWidth: 1,
+    borderColor: COLORS.surfaceMuted,
+    borderStyle: 'dashed',
     alignItems: 'center',
     marginBottom: 12,
   },
   emptyText: {
-    fontSize: 12.5,
+    fontSize: 12,
     color: COLORS.textMuted,
     fontStyle: 'italic',
   },
   itemRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#FFFBEB',
-    borderWidth: 1,
-    borderColor: '#FEF3C7',
-    borderRadius: 8,
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
     padding: 10,
-    marginBottom: 8,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: COLORS.surfaceMuted,
   },
-  bullet: {
-    color: '#D97706',
-    fontWeight: 'bold',
-    marginRight: 8,
-    marginTop: 1,
+  bulletDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.warning,
+    marginRight: 10,
   },
   itemText: {
+    fontSize: 12,
+    color: COLORS.textPrimary,
     flex: 1,
-    fontSize: 13,
-    color: '#92400E',
     lineHeight: 18,
   },
   itemActions: {
     flexDirection: 'row',
+    gap: 6,
     marginLeft: 8,
   },
   actionBtn: {
-    padding: 4,
-    marginLeft: 4,
-  },
-  editRow: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  editInput: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: COLORS.borderFocus,
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    fontSize: 13,
-  },
-  saveBtn: {
-    backgroundColor: COLORS.primaryAccent,
-    padding: 8,
-    borderRadius: 6,
-    marginLeft: 8,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  textInput: {
-    flex: 1,
+    padding: 5,
+    borderRadius: 4,
     backgroundColor: COLORS.surfaceSubtle,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    fontSize: 13,
+  },
+  editRow: {
+    flexDirection: 'row',
+    flex: 1,
+    alignItems: 'center',
+    gap: 8,
+  },
+  editInput: {
+    flex: 1,
+    height: 36,
+    borderWidth: 1,
+    borderColor: COLORS.primaryAccent,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    fontSize: 12,
     color: COLORS.textPrimary,
+    backgroundColor: '#FFFFFF',
+  },
+  saveBtn: {
+    backgroundColor: COLORS.success,
+    borderRadius: 6,
+    padding: 8,
+  },
+  addRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  input: {
+    flex: 1,
+    height: 40,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    fontSize: 12,
+    color: COLORS.textPrimary,
+    backgroundColor: '#FAFBFD',
   },
   addBtn: {
-    backgroundColor: COLORS.primaryAccent,
-    padding: 10,
-    borderRadius: 8,
-    marginLeft: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.warning,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+    gap: 4,
   },
-  disabledBtn: {
-    backgroundColor: COLORS.surfaceMuted,
+  addBtnDisabled: {
+    opacity: 0.5,
+  },
+  addBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });
-

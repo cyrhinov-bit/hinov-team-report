@@ -1,9 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Activity } from '@/types';
-import { COLORS } from '@/constants/colors';
+import { COLORS, SHADOWS } from '@/constants/colors';
 import { Badge } from '@/components/ui/Badge';
-import { CheckCircle2, Clock, AlertCircle, Plus, Edit2, Trash2 } from 'lucide-react-native';
+import { CheckCircle2, Clock, AlertCircle, Plus, Edit2, Trash2, CalendarDays } from 'lucide-react-native';
 
 interface DaySectionProps {
   key?: React.Key;
@@ -41,21 +41,30 @@ export const DaySection: React.FC<DaySectionProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.dayTitle}>{dayName.toUpperCase()}</Text>
-          {dateStr && <Text style={styles.dateSubtitle}>{dateStr}</Text>}
+        <View style={styles.headerLeft}>
+          <View style={styles.dayBadge}>
+            <Text style={styles.dayBadgeText}>{dayOfWeek}</Text>
+          </View>
+          <View>
+            <Text style={styles.dayTitle}>{dayName}</Text>
+            {dateStr && <Text style={styles.dateSubtitle}>{dateStr}</Text>}
+          </View>
         </View>
+
         <View style={styles.headerRight}>
-          <Text style={styles.countText}>
-            {activities.length} activité{activities.length > 1 ? 's' : ''}
-          </Text>
+          <View style={styles.countBadge}>
+            <Text style={styles.countText}>
+              {activities.length} tâche{activities.length > 1 ? 's' : ''}
+            </Text>
+          </View>
           {!readOnly && onAddActivity && (
             <TouchableOpacity
               style={styles.addBtn}
               onPress={() => onAddActivity(dayOfWeek)}
               activeOpacity={0.7}
             >
-              <Plus size={16} color={COLORS.primaryAccent} />
+              <Plus size={15} color="#FFFFFF" />
+              <Text style={styles.addBtnText}>Ajouter</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -63,7 +72,8 @@ export const DaySection: React.FC<DaySectionProps> = ({
 
       {activities.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>Aucune activité enregistrée</Text>
+          <CalendarDays size={20} color={COLORS.textMuted} style={{ marginBottom: 4 }} />
+          <Text style={styles.emptyText}>Aucune activité saisie pour ce jour</Text>
         </View>
       ) : (
         <View style={styles.list}>
@@ -79,7 +89,9 @@ export const DaySection: React.FC<DaySectionProps> = ({
                   <Text style={styles.activityDesc}>{act.description}</Text>
                 )}
                 {Boolean(act.category) && (
-                  <Text style={styles.categoryTag}>📁 {act.category}</Text>
+                  <View style={styles.categoryPill}>
+                    <Text style={styles.categoryTag}>📁 {act.category}</Text>
+                  </View>
                 )}
               </View>
               {!readOnly && !act.is_locked && (
@@ -89,15 +101,15 @@ export const DaySection: React.FC<DaySectionProps> = ({
                       onPress={() => onEditActivity(act)}
                       style={styles.actionBtn}
                     >
-                      <Edit2 size={14} color={COLORS.textSecondary} />
+                      <Edit2 size={13} color={COLORS.primaryAccent} />
                     </TouchableOpacity>
                   )}
                   {onDeleteActivity && (
                     <TouchableOpacity
                       onPress={() => onDeleteActivity(act.id)}
-                      style={styles.actionBtn}
+                      style={[styles.actionBtn, { borderColor: '#FADBD8' }]}
                     >
-                      <Trash2 size={14} color={COLORS.danger} />
+                      <Trash2 size={13} color={COLORS.danger} />
                     </TouchableOpacity>
                   )}
                 </View>
@@ -113,106 +125,154 @@ export const DaySection: React.FC<DaySectionProps> = ({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.surface,
-    borderRadius: 12,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
     marginBottom: 14,
     overflow: 'hidden',
+    ...SHADOWS.sm,
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: COLORS.surfaceSubtle,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FAFCFE',
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
-  dayTitle: {
-    fontSize: 13,
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  dayBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayBadgeText: {
+    color: '#FFFFFF',
     fontWeight: '800',
-    color: COLORS.primary,
-    letterSpacing: 0.5,
+    fontSize: 13,
+  },
+  dayTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
   },
   dateSubtitle: {
     fontSize: 11,
     color: COLORS.textSecondary,
-    marginTop: 1,
   },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+  },
+  countBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    backgroundColor: COLORS.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   countText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 11,
     color: COLORS.textSecondary,
-    marginRight: 8,
+    fontWeight: '600',
   },
   addBtn: {
-    backgroundColor: '#EFF6FF',
-    padding: 6,
-    borderRadius: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primaryAccent,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 5,
+    gap: 4,
+  },
+  addBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
   emptyContainer: {
-    padding: 14,
+    padding: 24,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyText: {
-    fontSize: 13,
+    fontSize: 12,
     color: COLORS.textMuted,
     fontStyle: 'italic',
   },
   list: {
-    paddingVertical: 4,
+    padding: 12,
   },
   activityItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: COLORS.surfaceMuted,
   },
   iconCol: {
-    marginTop: 2,
     marginRight: 10,
+    marginTop: 2,
   },
   contentCol: {
     flex: 1,
   },
   titleRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 4,
+    gap: 8,
   },
   activityTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: COLORS.textPrimary,
     flex: 1,
-    marginRight: 8,
   },
   activityDesc: {
-    fontSize: 12.5,
+    fontSize: 12,
     color: COLORS.textSecondary,
-    lineHeight: 17,
+    lineHeight: 18,
+    marginBottom: 6,
+  },
+  categoryPill: {
+    alignSelf: 'flex-start',
+    backgroundColor: COLORS.surfaceSubtle,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
   categoryTag: {
-    fontSize: 11,
-    color: COLORS.primaryAccent,
-    marginTop: 4,
-    fontWeight: '500',
+    fontSize: 10,
+    color: COLORS.textMuted,
+    fontWeight: '600',
   },
   actionsCol: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 6,
+    gap: 6,
+    marginLeft: 8,
+    marginTop: 2,
   },
   actionBtn: {
     padding: 6,
+    borderRadius: 5,
+    backgroundColor: COLORS.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
 });
-

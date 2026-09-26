@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
-import { COLORS } from '@/constants/colors';
+import { COLORS, SHADOWS } from '@/constants/colors';
 import { Target, Plus, Trash2, Edit3, Check } from 'lucide-react-native';
 
 interface PerspectiveSectionProps {
@@ -45,22 +45,26 @@ export const PerspectiveSection: React.FC<PerspectiveSectionProps> = ({
 
   return (
     <View style={styles.container}>
-      <View style={styles.titleRow}>
+      <View style={styles.header}>
         <View style={styles.titleWithIcon}>
-          <Target size={18} color={COLORS.primaryAccent} />
-          <Text style={styles.sectionTitle}>Perspectives & Priorités (Semaine Suivante)</Text>
+          <View style={styles.iconCircle}>
+            <Target size={16} color={COLORS.primaryAccent} />
+          </View>
+          <Text style={styles.sectionTitle}>Perspectives & Priorités (S+1)</Text>
         </View>
-        <Text style={styles.badgeCount}>{perspectives.length}</Text>
+        <View style={styles.badgeCount}>
+          <Text style={styles.badgeText}>{perspectives.length}</Text>
+        </View>
       </View>
 
       <Text style={styles.subtitle}>
-        Quelles sont vos principales priorités et livrables pour la semaine prochaine ?
+        Objectifs majeurs, projets à initier ou livrables prévus pour la semaine suivante.
       </Text>
 
       {perspectives.length === 0 ? (
         <View style={styles.emptyBox}>
           <Text style={styles.emptyText}>
-            Aucun objectif défini. Cliquez ci-dessous pour ajouter.
+            Aucune perspective définie. Saisissez vos priorités ci-dessous.
           </Text>
         </View>
       ) : (
@@ -80,7 +84,7 @@ export const PerspectiveSection: React.FC<PerspectiveSectionProps> = ({
               </View>
             ) : (
               <>
-                <Text style={styles.bullet}>➔</Text>
+                <View style={styles.bulletDot} />
                 <Text style={styles.itemText}>{item}</Text>
                 {!readOnly && (
                   <View style={styles.itemActions}>
@@ -88,13 +92,13 @@ export const PerspectiveSection: React.FC<PerspectiveSectionProps> = ({
                       onPress={() => startEdit(idx)}
                       style={styles.actionBtn}
                     >
-                      <Edit3 size={14} color={COLORS.textSecondary} />
+                      <Edit3 size={13} color={COLORS.primaryAccent} />
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => handleRemove(idx)}
-                      style={styles.actionBtn}
+                      style={[styles.actionBtn, { borderColor: '#FADBD8' }]}
                     >
-                      <Trash2 size={14} color={COLORS.danger} />
+                      <Trash2 size={13} color={COLORS.danger} />
                     </TouchableOpacity>
                   </View>
                 )}
@@ -105,21 +109,22 @@ export const PerspectiveSection: React.FC<PerspectiveSectionProps> = ({
       )}
 
       {!readOnly && (
-        <View style={styles.inputRow}>
+        <View style={styles.addRow}>
           <TextInput
-            placeholder="Ex : Finaliser la migration de la base de données..."
+            placeholder="Ajouter une priorité ou perspective pour la semaine prochaine..."
             placeholderTextColor={COLORS.textMuted}
             value={newItem}
             onChangeText={setNewItem}
-            style={styles.textInput}
             onSubmitEditing={handleAdd}
+            style={styles.input}
           />
           <TouchableOpacity
+            style={[styles.addBtn, !newItem.trim() && styles.addBtnDisabled]}
             onPress={handleAdd}
-            style={[styles.addBtn, !newItem.trim() && styles.disabledBtn]}
             disabled={!newItem.trim()}
           >
-            <Plus size={18} color="#FFFFFF" />
+            <Plus size={16} color="#FFFFFF" />
+            <Text style={styles.addBtnText}>Ajouter</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -130,131 +135,158 @@ export const PerspectiveSection: React.FC<PerspectiveSectionProps> = ({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.surface,
-    borderRadius: 12,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
+    borderTopWidth: 3,
+    borderTopColor: COLORS.primaryAccent,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 14,
+    ...SHADOWS.sm,
   },
-  titleRow: {
+  header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    justifyContent: 'space-between',
+    marginBottom: 6,
   },
   titleWithIcon: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    gap: 8,
+  },
+  iconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: '#EBF5FB',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
-    color: COLORS.primary,
-    marginLeft: 8,
-    flex: 1,
+    color: COLORS.textPrimary,
   },
   badgeCount: {
-    backgroundColor: '#EFF6FF',
-    color: COLORS.primaryAccent,
-    fontSize: 11,
-    fontWeight: '700',
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 6,
+    borderRadius: 12,
+    backgroundColor: '#EBF5FB',
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.primaryAccent,
   },
   subtitle: {
-    fontSize: 12.5,
+    fontSize: 12,
     color: COLORS.textSecondary,
     marginBottom: 12,
+    lineHeight: 16,
   },
   emptyBox: {
-    backgroundColor: COLORS.surfaceSubtle,
-    borderRadius: 8,
+    backgroundColor: '#FAFBFD',
+    borderRadius: 6,
     padding: 12,
+    borderWidth: 1,
+    borderColor: COLORS.surfaceMuted,
+    borderStyle: 'dashed',
     alignItems: 'center',
     marginBottom: 12,
   },
   emptyText: {
-    fontSize: 12.5,
+    fontSize: 12,
     color: COLORS.textMuted,
     fontStyle: 'italic',
   },
   itemRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#F0FDF4',
-    borderWidth: 1,
-    borderColor: '#DCFCE7',
-    borderRadius: 8,
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
     padding: 10,
-    marginBottom: 8,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: COLORS.surfaceMuted,
   },
-  bullet: {
-    color: '#16A34A',
-    fontWeight: 'bold',
-    marginRight: 8,
-    marginTop: 1,
+  bulletDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.primaryAccent,
+    marginRight: 10,
   },
   itemText: {
+    fontSize: 12,
+    color: COLORS.textPrimary,
     flex: 1,
-    fontSize: 13,
-    color: '#14532D',
     lineHeight: 18,
   },
   itemActions: {
     flexDirection: 'row',
+    gap: 6,
     marginLeft: 8,
   },
   actionBtn: {
-    padding: 4,
-    marginLeft: 4,
-  },
-  editRow: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  editInput: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: COLORS.borderFocus,
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    fontSize: 13,
-  },
-  saveBtn: {
-    backgroundColor: COLORS.primaryAccent,
-    padding: 8,
-    borderRadius: 6,
-    marginLeft: 8,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  textInput: {
-    flex: 1,
+    padding: 5,
+    borderRadius: 4,
     backgroundColor: COLORS.surfaceSubtle,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    fontSize: 13,
+  },
+  editRow: {
+    flexDirection: 'row',
+    flex: 1,
+    alignItems: 'center',
+    gap: 8,
+  },
+  editInput: {
+    flex: 1,
+    height: 36,
+    borderWidth: 1,
+    borderColor: COLORS.primaryAccent,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    fontSize: 12,
     color: COLORS.textPrimary,
+    backgroundColor: '#FFFFFF',
+  },
+  saveBtn: {
+    backgroundColor: COLORS.success,
+    borderRadius: 6,
+    padding: 8,
+  },
+  addRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  input: {
+    flex: 1,
+    height: 40,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    fontSize: 12,
+    color: COLORS.textPrimary,
+    backgroundColor: '#FAFBFD',
   },
   addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: COLORS.primaryAccent,
-    padding: 10,
-    borderRadius: 8,
-    marginLeft: 8,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+    gap: 4,
   },
-  disabledBtn: {
-    backgroundColor: COLORS.surfaceMuted,
+  addBtnDisabled: {
+    opacity: 0.5,
+  },
+  addBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });
-
