@@ -31,6 +31,7 @@ import {
   ShieldCheck,
   BellRing,
 } from 'lucide-react-native';
+import { ColorLine } from '@/components/ui/ColorLine';
 
 export default function AdminDashboardScreen() {
   const { user } = useAuth();
@@ -94,6 +95,8 @@ export default function AdminDashboardScreen() {
       contentContainerStyle={styles.scrollContent}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
+      <ColorLine height={4} style={{ borderRadius: 2, marginBottom: 14 }} />
+
       {/* Header Banner */}
       <View style={styles.headerBanner}>
         <View style={styles.headerLeft}>

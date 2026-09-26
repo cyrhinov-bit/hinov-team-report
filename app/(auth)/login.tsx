@@ -16,6 +16,7 @@ import { COLORS } from '@/constants/colors';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Mail, Lock, ShieldCheck, CheckCircle2 } from 'lucide-react-native';
+import { ColorLine } from '@/components/ui/ColorLine';
 
 export default function LoginScreen() {
   const { login, isLoading } = useAuth();
@@ -54,6 +55,8 @@ export default function LoginScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
+        <ColorLine height={4} style={{ borderRadius: 2, marginBottom: 20 }} />
+
         {/* Header Branding */}
         <View style={styles.header}>
           <View style={styles.logoBadge}>

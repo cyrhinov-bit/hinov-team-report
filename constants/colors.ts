@@ -1,77 +1,87 @@
-// HINOV Team Report (HTR) - Jeweler-Master Design System Tokens
+// HINOV Team Report (HTR) - Exact Jeweler-Master Template Color Tokens
 export const COLORS = {
-  // Brand & Sidebar Jeweler Master Palette
-  primary: '#152036',        // Deep Navy Jeweler Header & Sidebar
-  primaryLight: '#1B2A47',   // Navy hover surface
-  primaryDark: '#0D1524',    // Very deep dark background
-  primaryAccent: '#006DF0',  // Jeweler Royal Blue (Actions, CTA, Active item)
-  primaryAccentHover: '#005AC6',
+  // Brand & Header Jeweler Template Palette (Red Crimson to Dark Burgundy)
+  primary: '#e12503',              // Jeweler Signature Crimson Red
+  primaryDark: '#85060c',          // Jeweler Dark Burgundy (Header Gradient End)
+  primaryLight: '#ad1e04',         // Jeweler Hover / Deep Crimson
+  primaryAccent: '#03a9f4',        // Jeweler Material Sky Blue / Cyan (Actions, Icons, CTA)
+  primaryAccentHover: '#0288d1',
+  primaryHeaderBorder: '#c7290d',
 
-  // Gold & Corporate Accents
-  gold: '#E5A823',           // Jeweler Gold Badge / Accent
+  // Dark & Neutral Elements
+  dark: '#303030',                 // Jeweler Charcoal / Dark Panels
+  darkLight: '#343434',
+  darkHover: '#2b2a2a',
+
+  // Gold & Rating Accents
+  gold: '#f8ac59',                 // Jeweler Warm Gold / Amber
   goldLight: '#FEF9E7',
   goldBorder: '#FAD7A0',
 
-  // Sidebar Specific Tokens
-  sidebarBg: '#152036',
-  sidebarHover: '#1B2A47',
-  sidebarActive: '#006DF0',
-  sidebarText: '#8A99B5',
-  sidebarTextActive: '#FFFFFF',
-  sidebarBorder: '#243452',
+  // Status & Indicators (Jeweler Material theme)
+  success: '#27AE60',              // Vert Émeraude / Rapport validé / Tâche terminée
+  successLight: '#E8F8F0',         // Fond vert doux
+  warning: '#f8ac59',              // Orange/Ambre Jeweler / En cours / Brouillon
+  warningLight: '#FEF5E7',         // Fond orange doux
+  danger: '#e12503',               // Rouge Jeweler alerte / Erreur / Inactif
+  dangerLight: '#FDEDEC',          // Fond rouge doux
+  info: '#03a9f4',                 // Bleu cyan info
+  infoLight: '#E1F5FE',            // Fond bleu cyan doux
 
-  // Status & Indicators
-  success: '#27AE60',        // Vert validation / Rapport soumis / Tâche terminée
-  successLight: '#EAFAF1',   // Vert clair fond
-  warning: '#F39C12',        // Orange / Ambre alerte / En cours / Brouillon
-  warningLight: '#FEF5E7',   // Orange clair fond
-  danger: '#E74C3C',         // Rouge alerte / Compte inactif / Erreur
-  dangerLight: '#FDEDEC',    // Rouge clair fond
-  info: '#2980B9',           // Bleu info
-  infoLight: '#EBF5FB',      // Bleu info clair fond
-
-  // Gemini AI Theme
-  ai: '#8E44AD',             // Violet IA
-  aiLight: '#F4ECF7',        // Violet très clair fond
-  aiBorder: '#D2B4DE',       // Violet bordure
-  aiAccent: '#9B59B6',       // Magenta accent
+  // Google Gemini AI Theme
+  ai: '#9b59b6',                   // Violet Jeweler Multi-stripe
+  aiLight: '#F4ECF7',              // Violet fond clair
+  aiBorder: '#D2B4DE',             // Violet bordure
+  aiAccent: '#8e44ad',
 
   // Backgrounds & Surfaces
-  background: '#F6F8FA',     // Fond global Jeweler Dashboard
-  surface: '#FFFFFF',        // Blanc cartes et conteneurs
-  surfaceSubtle: '#F0F3F6',  // Gris neutre très doux
-  surfaceMuted: '#E5E9EC',   // Gris séparateur
+  background: '#f5f5f5',           // Fond global standard Jeweler (#f5f5f5)
+  surface: '#FFFFFF',              // Blanc pur cartes et conteneurs
+  surfaceSubtle: '#F7F9FA',        // Gris très clair (#f7f9fa)
+  surfaceMuted: '#E5E6E7',         // Gris bordure (#e5e6e7)
 
   // Typography & Readability
-  textPrimary: '#2B3445',    // Texte principal haute lisibilité
-  textSecondary: '#6B7A90',  // Sous-titres et métadonnées
-  textMuted: '#9AA7B9',      // Placeholders et inactifs
-  textWhite: '#FFFFFF',      // Texte blanc sur surfaces sombres
+  textPrimary: '#303030',          // Texte principal foncé Jeweler
+  textSecondary: '#676a6c',        // Sous-titres et descriptions (#676a6c)
+  textMuted: '#999999',            // Placeholders et inactifs (#999999)
+  textWhite: '#FFFFFF',            // Blanc
 
-  // Borders
-  border: '#E5E9EC',
-  borderFocus: '#006DF0',
+  // Borders & Controls
+  border: '#E5E6E7',               // Bordure standard Jeweler (#e5e6e7)
+  borderFocus: '#e12503',          // Bordure active Jeweler (#e12503)
+
+  // Color-Line Multi-Stripe Gradient Palette
+  stripeColors: [
+    '#34495e',
+    '#9b59b6',
+    '#3498db',
+    '#62cb31',
+    '#ffb606',
+    '#e67e22',
+    '#e74c3c',
+    '#c0392b',
+  ],
 };
 
 export const SHADOWS = {
   sm: {
-    shadowColor: '#152036',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.08,
     shadowRadius: 2,
     elevation: 2,
   },
   md: {
-    shadowColor: '#152036',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
+    shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
   lg: {
-    shadowColor: '#152036',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.12,
     shadowRadius: 8,
     elevation: 5,
   },

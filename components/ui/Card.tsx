@@ -52,8 +52,8 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   dark: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.dark,
     borderWidth: 1,
-    borderColor: COLORS.sidebarBorder,
+    borderColor: COLORS.darkHover,
   },
 });

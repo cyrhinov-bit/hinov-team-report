@@ -29,6 +29,7 @@ import {
   Briefcase,
   Sparkles,
 } from 'lucide-react-native';
+import { ColorLine } from '@/components/ui/ColorLine';
 
 export default function CollaboratorDashboard() {
   const { user } = useAuth();
@@ -109,6 +110,8 @@ export default function CollaboratorDashboard() {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
     >
+      <ColorLine height={4} style={{ borderRadius: 2, marginBottom: 12 }} />
+
       {/* Top Profile Card */}
       <View style={styles.profileHeader}>
         <Avatar url={user?.avatar_url} name={user?.full_name || 'U'} size={50} />
