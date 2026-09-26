@@ -176,16 +176,32 @@ export const AdminService = {
     }
 
     try {
-      // 1. Update profiles table with must_change_password & 24h expiration
-      await supabase
-        .from('profiles')
-        .update({
-          must_change_password: true,
-          temp_password_expires_at: expiresAt,
-        })
-        .eq('id', userId);
+      // 1. Check if the admin is resetting their own password
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (currentUser && currentUser.id === userId) {
+        const { error: selfUpdateError } = await supabase.auth.updateUser({
+          password: tempPassword,
+        });
 
-      // 2. Invoke reset edge function or fallback
+        if (selfUpdateError) {
+          return { success: false, error: selfUpdateError.message };
+        }
+
+        await supabase
+          .from('profiles')
+          .update({
+            must_change_password: true,
+            temp_password_expires_at: expiresAt,
+          })
+          .eq('id', userId);
+
+        return {
+          success: true,
+          temporaryPassword: tempPassword,
+        };
+      }
+
+      // 2. Invoke server-side Supabase Edge Function with Admin Service Role
       const { data, error } = await supabase.functions.invoke('admin-reset-password', {
         body: {
           targetUserId: userId,
@@ -195,18 +211,53 @@ export const AdminService = {
       });
 
       if (error) {
+        console.error('Edge Function admin-reset-password error:', error);
+        
+        // Fetch target user email to propose sending a reset email
+        const { data: targetProfile } = await supabase
+          .from('profiles')
+          .select('email, full_name')
+          .eq('id', userId)
+          .single();
+
+        let emailSent = false;
+        if (targetProfile?.email) {
+          const { error: emailErr } = await supabase.auth.resetPasswordForEmail(targetProfile.email);
+          if (!emailErr) {
+            emailSent = true;
+          }
+        }
+
         return {
-          success: true,
-          temporaryPassword: tempPassword,
+          success: false,
+          error: emailSent
+            ? `L'Edge Function 'admin-reset-password' n'est pas encore déployée sur votre projet Supabase. Un email sécurisé de réinitialisation a été envoyé à ${targetProfile?.email}.`
+            : `Échec de la réinitialisation sur Supabase (${error.message || 'Fonction serveur indisponible'}).`,
         };
       }
+
+      if (data?.error) {
+        return {
+          success: false,
+          error: data.error,
+        };
+      }
+
+      // 3. Mark must_change_password & temp_password_expires_at in profiles table
+      await supabase
+        .from('profiles')
+        .update({
+          must_change_password: true,
+          temp_password_expires_at: expiresAt,
+        })
+        .eq('id', userId);
 
       return {
         success: true,
         temporaryPassword: data?.temporaryPassword || tempPassword,
       };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      return { success: false, error: err.message || 'Erreur lors de la réinitialisation' };
     }
   },
 
