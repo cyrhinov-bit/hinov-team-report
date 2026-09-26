@@ -208,35 +208,39 @@ function generateCorporateHtml(reportData: any): string {
     </div>
 
     <div class="section-title">1. Activités Réalisées par Jour</div>
-    ${daysOrder
-      .map((day) => {
-        const dayActs = activitiesByDay[day.key] || [];
-        return `
-        <div class="day-block">
-          <div class="day-header">${day.label} (${dayActs.length} activité${dayActs.length > 1 ? "s" : ""})</div>
-          ${
-            dayActs.length === 0
-              ? `<div class="activity-item" style="color: #94A3B8; font-style: italic;">Aucune activité enregistrée pour ce jour.</div>`
-              : dayActs
-                  .map(
-                    (act: any) => `
+    ${(() => {
+      const daysWithTasks = daysOrder.filter(
+        (day) => (activitiesByDay[day.key] || []).length > 0
+      );
+      if (daysWithTasks.length === 0) {
+        return `<div class="box-list" style="color: #64748B; font-style: italic;">Aucune activité enregistrée cette semaine.</div>`;
+      }
+      return daysWithTasks
+        .map((day) => {
+          const dayActs = activitiesByDay[day.key] || [];
+          return `
+          <div class="day-block">
+            <div class="day-header">${day.label} (${dayActs.length} activité${dayActs.length > 1 ? "s" : ""})</div>
+            ${dayActs
+              .map(
+                (act: any) => `
               <div class="activity-item">
                 <div class="activity-title">
                   • ${act.title}
                   <span class="status-pill status-${act.status || "terminee"}">${
-                      act.status === "terminee" ? "Terminée" : act.status === "en_cours" ? "En cours" : "En attente"
-                    }</span>
+                    act.status === "terminee" ? "Terminée" : act.status === "en_cours" ? "En cours" : "En attente"
+                  }</span>
                 </div>
                 ${act.description ? `<div class="activity-desc">${act.description}</div>` : ""}
               </div>
             `
-                  )
-                  .join("")
-          }
-        </div>
-      `;
-      })
-      .join("")}
+              )
+              .join("")}
+          </div>
+        `;
+        })
+        .join("");
+    })()}
 
     <div class="section-title">2. Difficultés Rencontrées</div>
     <div class="box-list">

@@ -26,6 +26,11 @@ export const PdfService = {
       user.avatar_url ||
       'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80';
 
+    // Filter only days with activities
+    const daysWithTasks = dayLabels.filter(
+      (day) => (activitiesByDay[day.key] || []).length > 0
+    );
+
     return `
       <!DOCTYPE html>
       <html lang="fr">
@@ -244,7 +249,7 @@ export const PdfService = {
           <div class="user-details">
             <h2>${user.full_name}</h2>
             <p>${user.job_title || 'Collaborateur'} — ${user.department || 'Département HINOV'}</p>
-            <p style="font-size: 10.5px; color: #94A3B8;">${user.email}</p>
+            <p style="font-size: 10.5px; color: #999999;">${user.email}</p>
           </div>
           <div class="period-meta">
             <div class="period-label">Période d'activité</div>
@@ -253,54 +258,54 @@ export const PdfService = {
         </div>
 
         <div class="section-heading">1. Activités Réalisées par Jour</div>
-        ${dayLabels
-          .map((day) => {
-            const list = activitiesByDay[day.key] || [];
-            return `
+        ${
+          daysWithTasks.length === 0
+            ? `<div class="box-block" style="color: #676a6c; font-style: italic;">Aucune activité enregistrée pour cette semaine.</div>`
+            : daysWithTasks
+                .map((day) => {
+                  const list = activitiesByDay[day.key] || [];
+                  return `
             <div class="day-container">
               <div class="day-title">
                 <span>${day.name}</span>
-                <span style="font-weight: 500; font-size: 10.5px; color: #64748B;">${list.length} activité${
-              list.length > 1 ? 's' : ''
-            }</span>
+                <span style="font-weight: 500; font-size: 10.5px; color: #676a6c;">${list.length} activité${
+                    list.length > 1 ? 's' : ''
+                  }</span>
               </div>
-              ${
-                list.length === 0
-                  ? `<div class="activity-row" style="color: #94A3B8; font-style: italic;">Aucune tâche renseignée pour ce jour.</div>`
-                  : list
-                      .map(
-                        (a) => `
-                    <div class="activity-row">
-                      <div class="act-title">
-                        • ${a.title}
-                        <span class="tag-status tag-${a.status}">${
-                          a.status === 'terminee'
-                            ? 'Terminée'
-                            : a.status === 'en_cours'
-                            ? 'En cours'
-                            : 'En attente'
-                        }</span>
-                      </div>
-                      ${
-                        a.description
-                          ? `<div class="act-desc">${a.description}</div>`
-                          : ''
-                      }
-                    </div>
-                  `
-                      )
-                      .join('')
-              }
+              ${list
+                .map(
+                  (a) => `
+                <div class="activity-row">
+                  <div class="act-title">
+                    • ${a.title}
+                    <span class="tag-status tag-${a.status}">${
+                      a.status === 'terminee'
+                        ? 'Terminée'
+                        : a.status === 'en_cours'
+                        ? 'En cours'
+                        : 'En attente'
+                    }</span>
+                  </div>
+                  ${
+                    a.description
+                      ? `<div class="act-desc">${a.description}</div>`
+                      : ''
+                  }
+                </div>
+              `
+                )
+                .join('')}
             </div>
           `;
-          })
-          .join('')}
+                })
+                .join('')
+        }
 
         <div class="section-heading">2. Difficultés & Points d'Attention</div>
         <div class="box-block">
           ${
             !report.difficulties || report.difficulties.length === 0
-              ? `<div style="color: #64748B; font-style: italic;">Aucune difficulté technique ou blocage majeur signalé cette semaine.</div>`
+              ? `<div style="color: #676a6c; font-style: italic;">Aucune difficulté technique ou blocage majeur signalé cette semaine.</div>`
               : report.difficulties
                   .map(
                     (d) => `
@@ -318,7 +323,7 @@ export const PdfService = {
         <div class="box-block">
           ${
             !report.perspectives || report.perspectives.length === 0
-              ? `<div style="color: #64748B; font-style: italic;">Continuité opérationnelle des projets en cours.</div>`
+              ? `<div style="color: #676a6c; font-style: italic;">Continuité opérationnelle des projets en cours.</div>`
               : report.perspectives
                   .map(
                     (p) => `

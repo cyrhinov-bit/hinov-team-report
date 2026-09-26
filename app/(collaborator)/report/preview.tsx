@@ -173,21 +173,29 @@ export default function ReportPreviewScreen() {
             </View>
           </View>
 
-          {/* 1. Activities by Day */}
+          {/* 1. Activities by Day (Only days with tasks) */}
           <Text style={styles.sectionHeading}>1. Activités Réalisées par Jour</Text>
-          {FRENCH_DAYS.map((d) => {
-            const list = activitiesByDay[d.key] || [];
-            return (
-              <View key={`prev-day-${d.key}`} style={styles.dayBox}>
-                <View style={styles.dayBoxHeader}>
-                  <Text style={styles.dayBoxTitle}>{d.label.toUpperCase()}</Text>
-                  <Text style={styles.dayBoxCount}>{list.length} tâche(s)</Text>
+          {(() => {
+            const daysWithTasks = FRENCH_DAYS.filter(
+              (d) => (activitiesByDay[d.key] || []).length > 0
+            );
+            if (daysWithTasks.length === 0) {
+              return (
+                <View style={styles.noticeBox}>
+                  <Text style={styles.emptyNoticeText}>Aucune activité enregistrée cette semaine.</Text>
                 </View>
+              );
+            }
+            return daysWithTasks.map((d) => {
+              const list = activitiesByDay[d.key] || [];
+              return (
+                <View key={`prev-day-${d.key}`} style={styles.dayBox}>
+                  <View style={styles.dayBoxHeader}>
+                    <Text style={styles.dayBoxTitle}>{d.label.toUpperCase()}</Text>
+                    <Text style={styles.dayBoxCount}>{list.length} tâche(s)</Text>
+                  </View>
 
-                {list.length === 0 ? (
-                  <Text style={styles.emptyDayText}>Aucune activité enregistrée</Text>
-                ) : (
-                  list.map((act, i) => (
+                  {list.map((act, i) => (
                     <View key={`prev-act-${act.id || i}`} style={styles.activityItem}>
                       <View style={styles.actTitleRow}>
                         <Text style={styles.actTitle}>• {act.title}</Text>
@@ -197,11 +205,11 @@ export default function ReportPreviewScreen() {
                         <Text style={styles.actDesc}>{act.description}</Text>
                       )}
                     </View>
-                  ))
-                )}
-              </View>
-            );
-          })}
+                  ))}
+                </View>
+              );
+            });
+          })()}
 
           {/* 2. Difficulties */}
           <Text style={styles.sectionHeading}>2. Difficultés Rencontrées</Text>
