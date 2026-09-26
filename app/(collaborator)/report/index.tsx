@@ -26,6 +26,7 @@ import { supabase, isSupabaseConfigured } from '@/services/supabase';
 import { GeminiService } from '@/services/gemini';
 import { getWeekNumber, getWeekRange, FRENCH_DAYS } from '@/utils/date';
 import { confirmAction, showAlert } from '@/utils/alert';
+import { NotificationHelper } from '@/utils/notifications';
 import { Activity, WeeklyReport } from '@/types';
 import {
   Sparkles,
@@ -36,6 +37,8 @@ import {
   Lock,
   Save,
   CheckCircle2,
+  Award,
+  ShieldCheck,
 } from 'lucide-react-native';
 
 export default function WeeklyReportScreen() {
@@ -336,9 +339,23 @@ export default function WeeklyReportScreen() {
           setSubmitting(false);
 
           if (res.success) {
-            showAlert('Succès', res.message || 'Rapport transmis avec succès !', () => {
-              loadReportData(true);
+            // Trigger system / desktop / mobile notification
+            await NotificationHelper.notifyReportSubmitted({
+              week: updatedReport.week_number,
+              year: updatedReport.year,
+              authorName: user.full_name,
+              recipientEmail: updatedReport.email_recipient || undefined,
             });
+
+            showAlert(
+              'Rapport Soumis avec Succès !',
+              isDirector
+                ? `Votre rapport personnel de la Semaine ${updatedReport.week_number} a été validé et archivé avec succès.`
+                : `Votre rapport hebdomadaire pour la Semaine ${updatedReport.week_number} (${updatedReport.start_date} au ${updatedReport.end_date}) a été validé et transmis avec succès à la Direction.\n\nUne attestation de dépôt certifiée a été générée et vos activités sont archivées.`,
+              () => {
+                loadReportData(true);
+              }
+            );
           } else {
             showAlert('Notice', res.error || 'Erreur de transmission');
           }
@@ -397,14 +414,53 @@ export default function WeeklyReportScreen() {
         </View>
 
         {isSubmitted && (
-          <View style={styles.submittedAlert}>
-            <CheckCircle2 size={16} color={COLORS.success} />
-            <Text style={styles.submittedAlertText}>
-              Ce rapport a été finalisé et archivé.
-              {report?.emailed_at
-                ? ` Transmis par email au Directeur (${report.email_recipient}) le ${new Date(report.emailed_at).toLocaleDateString('fr-FR')}.`
-                : ''}
-            </Text>
+          <View style={styles.attestationCard}>
+            <View style={styles.attestationHeader}>
+              <View style={styles.attestationIconWrapper}>
+                <ShieldCheck size={20} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={styles.attestationTitle}>Attestation de Soumission</Text>
+                <Text style={styles.attestationSub}>
+                  Rapport certifié et archivé pour la Semaine {report?.week_number}
+                </Text>
+              </View>
+              <Badge label="TRANSMIS ✓" reportStatus="soumis" />
+            </View>
+
+            <View style={styles.attestationDivider} />
+
+            <View style={styles.attestationBody}>
+              <View style={styles.attestationFieldRow}>
+                <Text style={styles.attestationFieldLabel}>Date & Heure :</Text>
+                <Text style={styles.attestationFieldValue}>
+                  {report?.submitted_at
+                    ? new Date(report.submitted_at).toLocaleDateString('fr-FR', {
+                        weekday: 'short',
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                    : 'Enregistré'}
+                </Text>
+              </View>
+
+              {Boolean(report?.email_recipient) && (
+                <View style={styles.attestationFieldRow}>
+                  <Text style={styles.attestationFieldLabel}>Destinataire :</Text>
+                  <Text style={styles.attestationFieldValue}>{report!.email_recipient}</Text>
+                </View>
+              )}
+
+              <View style={styles.attestationFieldRow}>
+                <Text style={styles.attestationFieldLabel}>Activités transmises :</Text>
+                <Text style={[styles.attestationFieldValue, { color: COLORS.success, fontWeight: '800' }]}>
+                  {totalActivities} tâche(s) validée(s)
+                </Text>
+              </View>
+            </View>
           </View>
         )}
       </Card>
@@ -587,20 +643,58 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     fontWeight: '600',
   },
-  submittedAlert: {
+  attestationCard: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1.5,
+    borderColor: '#86EFAC',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 14,
+  },
+  attestationHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.successLight,
-    padding: 10,
-    borderRadius: 8,
-    marginTop: 12,
   },
-  submittedAlertText: {
-    fontSize: 12,
+  attestationIconWrapper: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#16A34A',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  attestationTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#14532D',
+  },
+  attestationSub: {
+    fontSize: 11,
     color: '#166534',
-    marginLeft: 8,
-    flex: 1,
-    lineHeight: 16,
+    marginTop: 1,
+  },
+  attestationDivider: {
+    height: 1,
+    backgroundColor: '#BBF7D0',
+    marginVertical: 10,
+  },
+  attestationBody: {
+    gap: 5,
+  },
+  attestationFieldRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  attestationFieldLabel: {
+    fontSize: 11.5,
+    color: '#166534',
+    fontWeight: '600',
+  },
+  attestationFieldValue: {
+    fontSize: 11.5,
+    color: '#14532D',
+    fontWeight: '700',
   },
   aiBanner: {
     flexDirection: 'row',

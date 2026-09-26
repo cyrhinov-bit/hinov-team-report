@@ -247,8 +247,12 @@ export default function CollaboratorDashboard() {
       {/* Card 3: Mon Rapport Hebdomadaire */}
       <Card style={styles.statCard}>
         <View style={styles.cardHeaderRow}>
-          <View style={[styles.cardIconBox, { backgroundColor: COLORS.aiLight }]}>
-            <FileText size={18} color={COLORS.ai} />
+          <View style={[styles.cardIconBox, { backgroundColor: currentReport?.status === 'soumis' ? COLORS.successLight : COLORS.aiLight }]}>
+            {currentReport?.status === 'soumis' ? (
+              <CheckCircle2 size={18} color={COLORS.success} />
+            ) : (
+              <FileText size={18} color={COLORS.ai} />
+            )}
           </View>
           <Text style={styles.cardTitle}>Mon Rapport Hebdomadaire</Text>
           <Badge label={reportBadge.label} reportStatus={reportBadge.status} />
@@ -256,24 +260,26 @@ export default function CollaboratorDashboard() {
 
         <Text style={styles.reportSummaryText}>
           {currentReport?.status === 'soumis'
-            ? `Votre rapport de la Semaine ${week} a été soumis et transmis avec succès.`
+            ? `Votre rapport de la Semaine ${week} a été validé et transmis avec succès à la Direction.`
             : `${activities.length} activité(s) prête(s) à être consolidée(s) pour la Semaine ${week}.`}
         </Text>
 
         <View style={styles.reportActionsRow}>
           <Button
-            title="📄 Préparer mon rapport"
-            onPress={() => router.push('/(collaborator)/report')}
-            variant="primary"
+            title={currentReport?.status === 'soumis' ? "Consulter l'attestation & PDF" : "📄 Préparer mon rapport"}
+            onPress={() => router.push(currentReport?.status === 'soumis' ? '/(collaborator)/report/preview' : '/(collaborator)/report')}
+            variant={currentReport?.status === 'soumis' ? "secondary" : "primary"}
             style={{ flex: 1, marginRight: 8 }}
           />
-          <TouchableOpacity
-            style={styles.aiQuickBtn}
-            onPress={() => router.push('/(collaborator)/report')}
-            activeOpacity={0.8}
-          >
-            <Sparkles size={16} color={COLORS.ai} />
-          </TouchableOpacity>
+          {currentReport?.status !== 'soumis' && (
+            <TouchableOpacity
+              style={styles.aiQuickBtn}
+              onPress={() => router.push('/(collaborator)/report')}
+              activeOpacity={0.8}
+            >
+              <Sparkles size={16} color={COLORS.ai} />
+            </TouchableOpacity>
+          )}
         </View>
       </Card>
     </ScrollView>

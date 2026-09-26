@@ -24,6 +24,7 @@ import { SettingsService } from '@/services/settings';
 import { WeeklyReport, Activity, CompanySettings } from '@/types';
 import { FRENCH_DAYS, getWeekNumber, getWeekRange } from '@/utils/date';
 import { confirmAction, showAlert } from '@/utils/alert';
+import { NotificationHelper } from '@/utils/notifications';
 import {
   Share2,
   Download,
@@ -194,9 +195,23 @@ export default function ReportPreviewScreen() {
           setSubmitting(false);
 
           if (res.success) {
-            showAlert('Succès', res.message || 'Rapport transmis avec succès !', () => {
-              router.replace('/(collaborator)');
+            // Trigger system / desktop / mobile notification
+            await NotificationHelper.notifyReportSubmitted({
+              week: report!.week_number,
+              year: report!.year,
+              authorName: user.full_name,
+              recipientEmail: report!.email_recipient || undefined,
             });
+
+            showAlert(
+              'Rapport Soumis avec Succès !',
+              isDirector
+                ? `Votre rapport personnel de la Semaine ${report!.week_number} a été validé et archivé avec succès.`
+                : `Votre rapport hebdomadaire pour la Semaine ${report!.week_number} (${report!.start_date} au ${report!.end_date}) a été validé et transmis avec succès à la Direction.\n\nUne attestation de dépôt certifiée a été générée.`,
+              () => {
+                router.replace('/(collaborator)');
+              }
+            );
           } else {
             showAlert('Notice', res.error || 'Erreur de transmission');
           }
