@@ -2,11 +2,13 @@ import React from 'react';
 import { Tabs, router } from 'expo-router';
 import { TouchableOpacity, Text, StyleSheet, View, Image } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 import { COLORS } from '@/constants/colors';
 import { LayoutDashboard, CheckSquare, FileText, History, User, Shield, ShieldCheck } from 'lucide-react-native';
 
 export default function CollaboratorLayout() {
   const { user } = useAuth();
+  const { unreadCount } = useNotifications();
   const isAdmin = user?.role === 'super_admin' || user?.role === 'directeur_admin';
 
   return (
@@ -91,6 +93,13 @@ export default function CollaboratorLayout() {
           title: 'Supervision',
           headerShown: false,
           href: isAdmin ? undefined : null,
+          tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+          tabBarBadgeStyle: {
+            backgroundColor: '#10B981',
+            color: '#FFFFFF',
+            fontSize: 10,
+            fontWeight: '700',
+          },
           tabBarIcon: ({ color, size }) => (
             <ShieldCheck size={size} color={color} />
           ),

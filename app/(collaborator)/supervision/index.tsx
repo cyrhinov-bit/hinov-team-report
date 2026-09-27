@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 import { COLORS } from '@/constants/colors';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
@@ -31,6 +32,7 @@ import {
 
 export default function SupervisionReportsScreen() {
   const { user: currentUser } = useAuth();
+  const { clearAll } = useNotifications();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [reports, setReports] = useState<WeeklyReport[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -86,7 +88,8 @@ export default function SupervisionReportsScreen() {
   useFocusEffect(
     useCallback(() => {
       loadData();
-    }, [currentUser])
+      clearAll();
+    }, [currentUser, clearAll])
   );
 
   const onRefresh = async () => {
