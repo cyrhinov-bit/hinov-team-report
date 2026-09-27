@@ -71,11 +71,11 @@ CREATE POLICY "Activities owner delete" ON public.activities
     );
 
 -- 5. REPORTS POLICIES
--- Collaborator reads their own; Admins read all
+-- Collaborator reads their own; Admins only read submitted reports (or their own)
 DROP POLICY IF EXISTS "Reports select policy" ON public.reports;
 CREATE POLICY "Reports select policy" ON public.reports
     FOR SELECT USING (
-        auth.uid() = user_id OR public.is_admin()
+        auth.uid() = user_id OR (public.is_admin() AND status = 'soumis')
     );
 
 DROP POLICY IF EXISTS "Reports user insert" ON public.reports;

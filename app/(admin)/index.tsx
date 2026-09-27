@@ -69,16 +69,13 @@ export default function AdminDashboardScreen() {
   const totalCount = activeCollaborators.length || 1;
 
   const submittedReports = reports.filter((r) => r.status === 'soumis');
-  const draftReports = reports.filter((r) => r.status === 'brouillon');
-
   const submittedCount = submittedReports.length;
-  const draftCount = draftReports.length;
-  const missingCount = Math.max(0, totalCount - submittedCount - draftCount);
+  const pendingCount = Math.max(0, totalCount - submittedCount);
 
   const handleRemindTeam = () => {
     confirmAction({
       title: 'Relance des Collaborateurs',
-      message: `Un rappel par notification sera envoyé aux ${missingCount + draftCount} collaborateur(s) n'ayant pas encore soumis leur rapport de la Semaine ${week}.`,
+      message: `Un rappel par notification sera envoyé aux ${pendingCount} collaborateur(s) n'ayant pas encore soumis leur rapport de la Semaine ${week}.`,
       confirmText: 'Envoyer le rappel',
       onConfirm: () => {
         showAlert(
@@ -112,24 +109,17 @@ export default function AdminDashboardScreen() {
       {/* KPI Stats Grid */}
       <View style={styles.statsGrid}>
         <StatsCard
-          title="Reçus"
+          title="Rapports Reçus"
           value={`${submittedCount} / ${totalCount}`}
           subtitle={`${Math.round((submittedCount / totalCount) * 100)}% de complétion`}
           icon={<FileCheck2 size={18} color={COLORS.success} />}
           variant="success"
         />
         <StatsCard
-          title="Brouillons"
-          value={draftCount}
-          subtitle="En cours de saisie"
-          icon={<Clock size={18} color="#B45309" />}
-          variant="warning"
-        />
-        <StatsCard
-          title="Non Soumis"
-          value={missingCount}
-          subtitle="À relancer"
-          icon={<AlertCircle size={18} color={COLORS.danger} />}
+          title="En Attente"
+          value={pendingCount}
+          subtitle="Non encore soumis"
+          icon={<AlertCircle size={18} color={COLORS.warning} />}
           variant="warning"
         />
       </View>

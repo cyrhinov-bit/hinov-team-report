@@ -347,7 +347,7 @@ export const ReportsService = {
     if (!isSupabaseConfigured) {
       const raw = await AsyncStorage.getItem(REPORTS_STORAGE_KEY);
       const reports: WeeklyReport[] = raw ? JSON.parse(raw) : [];
-      return reports.filter((r) => r.week_number === w && r.year === y);
+      return reports.filter((r) => r.week_number === w && r.year === y && r.status === 'soumis');
     }
 
     try {
@@ -356,6 +356,7 @@ export const ReportsService = {
         .select('*, author:profiles!user_id(*)')
         .eq('week_number', w)
         .eq('year', y)
+        .eq('status', 'soumis')
         .order('submitted_at', { ascending: false });
 
       if (!error && data) {
@@ -368,6 +369,7 @@ export const ReportsService = {
         .select('*')
         .eq('week_number', w)
         .eq('year', y)
+        .eq('status', 'soumis')
         .order('submitted_at', { ascending: false });
 
       if (fallbackError) throw fallbackError;

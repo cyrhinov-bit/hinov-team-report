@@ -34,7 +34,7 @@ export default function AdminReportsScreen() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [reports, setReports] = useState<WeeklyReport[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'soumis' | 'brouillon' | 'manquant'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'soumis' | 'manquant'>('all');
 
   const { week, year } = getWeekNumber();
   const weekRange = getWeekRange(week, year);
@@ -129,17 +129,14 @@ export default function AdminReportsScreen() {
     }
   };
 
-  // Combine users and reports
+  // Combine users and submitted reports
   const userReportStatuses = users.map((u) => {
-    const rep = reports.find((r) => r.user_id === u.id);
-    let state: 'soumis' | 'brouillon' | 'manquant' = 'manquant';
-    if (rep) {
-      state = rep.status === 'soumis' ? 'soumis' : 'brouillon';
-    }
+    const rep = reports.find((r) => r.user_id === u.id && r.status === 'soumis');
+    const isSubmitted = Boolean(rep);
     return {
       user: u,
-      report: rep,
-      state,
+      report: rep || null,
+      state: isSubmitted ? ('soumis' as const) : ('manquant' as const),
     };
   });
 
@@ -181,20 +178,11 @@ export default function AdminReportsScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.filterBtn, statusFilter === 'brouillon' && styles.filterBtnActive]}
-          onPress={() => setStatusFilter('brouillon')}
-        >
-          <Text style={[styles.filterBtnText, statusFilter === 'brouillon' && styles.filterBtnTextActive]}>
-            Brouillons ({userReportStatuses.filter((s) => s.state === 'brouillon').length})
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
           style={[styles.filterBtn, statusFilter === 'manquant' && styles.filterBtnActive]}
           onPress={() => setStatusFilter('manquant')}
         >
           <Text style={[styles.filterBtnText, statusFilter === 'manquant' && styles.filterBtnTextActive]}>
-            Non soumis ({userReportStatuses.filter((s) => s.state === 'manquant').length})
+            En attente ({userReportStatuses.filter((s) => s.state === 'manquant').length})
           </Text>
         </TouchableOpacity>
       </View>
@@ -215,27 +203,9 @@ export default function AdminReportsScreen() {
                 </Text>
               </View>
               <Badge
-                label={
-                  state === 'soumis'
-                    ? 'Soumis'
-                    : state === 'brouillon'
-                    ? 'Brouillon'
-                    : 'Non Soumis'
-                }
-                color={
-                  state === 'soumis'
-                    ? COLORS.success
-                    : state === 'brouillon'
-                    ? '#B45309'
-                    : COLORS.danger
-                }
-                backgroundColor={
-                  state === 'soumis'
-                    ? COLORS.successLight
-                    : state === 'brouillon'
-                    ? COLORS.warningLight
-                    : '#FEE2E2'
-                }
+                label={state === 'soumis' ? 'Reçu' : 'En attente'}
+                color={state === 'soumis' ? COLORS.success : '#D97706'}
+                backgroundColor={state === 'soumis' ? COLORS.successLight : '#FEF3C7'}
               />
             </View>
 
@@ -259,16 +229,19 @@ export default function AdminReportsScreen() {
 
                 {colRep.submitted_at && (
                   <Text style={styles.submitDate}>
-                    Reçu le {new Date(colRep.submitted_at).toLocaleDateString('fr-FR')}
+                    Reçu le {new Date(colRep.submitted_at).toLocaleDateString('fr-FR', {
+                      day: 'numeric',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
                   </Text>
                 )}
               </View>
             ) : (
               <View style={styles.pendingBar}>
                 <Text style={styles.pendingText}>
-                  {state === 'brouillon'
-                    ? 'Le collaborateur est en train de renseigner ses activités.'
-                    : 'Aucune activité ni brouillon enregistré pour cette semaine.'}
+                  Rapport hebdomadaire non encore soumis pour cette semaine.
                 </Text>
               </View>
             )}
