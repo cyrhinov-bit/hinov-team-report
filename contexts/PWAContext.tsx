@@ -31,16 +31,30 @@ export const PWAProvider: React.FC<{ children?: React.ReactNode }> = ({ children
       const isStandalone =
         window.matchMedia('(display-mode: standalone)').matches ||
         (window.navigator as any).standalone === true ||
-        document.referrer.includes('android-app://');
+        Boolean(document.referrer && document.referrer.includes('android-app://'));
       setIsInstalled(Boolean(isStandalone));
     };
 
     checkIsStandalone();
 
-    // Listen for beforeinstallprompt
+    // Check if beforeinstallprompt was already captured in +html.tsx early inline script
+    const globalPrompt = (window as any).__deferredPrompt;
+    if (globalPrompt) {
+      setDeferredPrompt(globalPrompt);
+      setIsInstallable(true);
+    }
+
+    (window as any).__onBeforeInstallPromptReady = (e: BeforeInstallPromptEvent) => {
+      setDeferredPrompt(e);
+      setIsInstallable(true);
+    };
+
+    // Listen for beforeinstallprompt event
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
+      const promptEvent = e as BeforeInstallPromptEvent;
+      (window as any).__deferredPrompt = promptEvent;
+      setDeferredPrompt(promptEvent);
       setIsInstallable(true);
     };
 
@@ -49,6 +63,7 @@ export const PWAProvider: React.FC<{ children?: React.ReactNode }> = ({ children
       setIsInstalled(true);
       setIsInstallable(false);
       setDeferredPrompt(null);
+      (window as any).__deferredPrompt = null;
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -57,41 +72,32 @@ export const PWAProvider: React.FC<{ children?: React.ReactNode }> = ({ children
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
+      (window as any).__onBeforeInstallPromptReady = null;
     };
   }, []);
 
   const promptInstall = useCallback(async (): Promise<boolean> => {
-    if (!deferredPrompt) {
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        const ua = navigator.userAgent || '';
-        const isIOS = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream;
-        const isAndroid = /Android/.test(ua);
+    const activePrompt = deferredPrompt || (typeof window !== 'undefined' ? (window as any).__deferredPrompt : null);
 
-        if (isIOS) {
-          alert("📱 Installation sur iPhone / iPad :\n\n1. Touchez le bouton de partage (icône avec une flèche vers le haut).\n2. Faites défiler et sélectionnez « Sur l'écran d'accueil ».\n3. Touchez « Ajouter ».");
-        } else if (isAndroid) {
-          alert("📱 Installation sur Android :\n\n1. Touchez les 3 points verticaux (⋮) en haut à droite du navigateur.\n2. Sélectionnez « Ajouter à l'écran d'accueil » ou « Installer l'application ».");
-        } else {
-          alert("💻 Installation sur Ordinateur (Chrome / Edge / Brave) :\n\n1. Cliquez sur l'icône d'installation (⊕ ou écran avec flèche) située tout à droite dans la barre d'adresse du navigateur.\n2. Ou cliquez sur le menu (⋮) > « Installer Hinov Team Report ».");
+    if (activePrompt && typeof activePrompt.prompt === 'function') {
+      try {
+        await activePrompt.prompt();
+        const choiceResult = await activePrompt.userChoice;
+        if (choiceResult && choiceResult.outcome === 'accepted') {
+          setIsInstalled(true);
+          setIsInstallable(false);
+          setDeferredPrompt(null);
+          if (typeof window !== 'undefined') (window as any).__deferredPrompt = null;
+          return true;
         }
+        return false;
+      } catch (err) {
+        console.warn('PWA prompt execution error:', err);
+        return false;
       }
-      return false;
     }
 
-    try {
-      await deferredPrompt.prompt();
-      const choiceResult = await deferredPrompt.userChoice;
-      if (choiceResult.outcome === 'accepted') {
-        setIsInstalled(true);
-        setIsInstallable(false);
-        setDeferredPrompt(null);
-        return true;
-      }
-      return false;
-    } catch (err) {
-      console.warn('PWA prompt error:', err);
-      return false;
-    }
+    return false;
   }, [deferredPrompt]);
 
   return (

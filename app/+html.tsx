@@ -24,20 +24,30 @@ export default function Root({ children }: PropsWithChildren) {
         {/* Title & Description */}
         <title>Hinov Team Report (HTR)</title>
         <meta name="description" content="Plateforme officielle de reporting hebdomadaire du groupe HINOV" />
+        <link rel="apple-touch-icon" href="/icon-192.png" />
 
         {/* Disable body scrolling on web for native app feel */}
         <ScrollViewStyleReset />
 
-        {/* Service Worker Registration */}
+        {/* Immediate PWA Event Interception & Service Worker */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
+              window.__deferredPrompt = null;
+              window.addEventListener('beforeinstallprompt', function(e) {
+                e.preventDefault();
+                window.__deferredPrompt = e;
+                if (window.__onBeforeInstallPromptReady) {
+                  window.__onBeforeInstallPromptReady(e);
+                }
+              });
+
               if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
                 window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js').then(function(registration) {
-                    console.log('HTR ServiceWorker registration successful with scope: ', registration.scope);
-                  }, function(err) {
-                    console.log('HTR ServiceWorker registration failed: ', err);
+                  navigator.serviceWorker.register('/sw.js').then(function(reg) {
+                    console.log('HTR PWA: ServiceWorker active', reg.scope);
+                  }).catch(function(err) {
+                    console.log('HTR PWA: ServiceWorker registration error', err);
                   });
                 });
               }
