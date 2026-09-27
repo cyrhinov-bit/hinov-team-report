@@ -1,13 +1,16 @@
 // Hinov Team Report (HTR) - PWA Service Worker
-const CACHE_NAME = 'htr-pwa-cache-v1';
+const CACHE_NAME = 'htr-pwa-cache-v2';
 
 const STATIC_ASSETS = [
-  '/',
   '/manifest.json',
-  '/favicon.ico',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon.png',
+  '/favicon.png',
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS).catch((err) => {
@@ -15,7 +18,6 @@ self.addEventListener('install', (event) => {
       });
     })
   );
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
@@ -26,15 +28,29 @@ self.addEventListener('activate', (event) => {
           .filter((name) => name !== CACHE_NAME)
           .map((name) => caches.delete(name))
       );
-    })
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
-  // Network first with cache fallback
+  const url = new URL(event.request.url);
+
+  // NEVER cache local dev bundles or hot reload websockets
+  if (
+    url.hostname === 'localhost' ||
+    url.hostname === '127.0.0.1' ||
+    url.pathname.includes('hot-update') ||
+    url.pathname.includes('node_modules') ||
+    url.pathname.includes('.bundle') ||
+    url.pathname.includes('_expo') ||
+    url.pathname.startsWith('/api')
+  ) {
+    return; // Let browser handle request directly from network
+  }
+
+  // Network first with cache fallback for production assets
   event.respondWith(
     fetch(event.request)
       .then((response) => {
