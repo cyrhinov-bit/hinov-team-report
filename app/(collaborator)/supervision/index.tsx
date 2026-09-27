@@ -41,13 +41,13 @@ export default function SupervisionReportsScreen() {
   const { week, year } = getWeekNumber();
   const weekRange = getWeekRange(week, year);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     const allUsers = await AdminService.getAllUsers();
     setUsers(allUsers.filter((u) => u.is_active && u.role !== 'super_admin'));
 
     const weekReports = await ReportsService.getAllReportsForAdmin(week, year);
     setReports(weekReports);
-  };
+  }, [week, year]);
 
   useEffect(() => {
     loadData();
@@ -83,13 +83,13 @@ export default function SupervisionReportsScreen() {
         supabase.removeChannel(channel);
       };
     }
-  }, [currentUser]);
+  }, [loadData]);
 
   useFocusEffect(
     useCallback(() => {
       loadData();
       clearAll();
-    }, [currentUser, clearAll])
+    }, [loadData, clearAll])
   );
 
   const onRefresh = async () => {

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase, isSupabaseConfigured } from '@/services/supabase';
 import { NotificationHelper } from '@/utils/notifications';
@@ -83,15 +83,15 @@ export const NotificationProvider: React.FC<{ children?: React.ReactNode }> = ({
         console.warn('Error handling report notification:', err);
       }
     },
-    [user?.id, isAdmin]
+    [user?.id]
   );
 
   useEffect(() => {
-    if (!isAdmin || !isSupabaseConfigured) return;
+    if (!isAdmin || !isSupabaseConfigured || !user?.id) return;
 
     // Realtime listener on reports table
     const channel = supabase
-      .channel(`rt:admin_report_notifications:${user?.id}`)
+      .channel(`rt:admin_report_notifications:${user.id}`)
       .on(
         'postgres_changes',
         {
@@ -126,37 +126,44 @@ export const NotificationProvider: React.FC<{ children?: React.ReactNode }> = ({
     };
   }, [isAdmin, user?.id, handleNewSubmittedReport]);
 
-  const markAsRead = (id: string) => {
+  const markAsRead = useCallback((id: string) => {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
     setUnreadCount((prev) => Math.max(0, prev - 1));
-  };
+  }, []);
 
-  const clearAll = () => {
-    setNotifications([]);
-    setUnreadCount(0);
-  };
+  const clearAll = useCallback(() => {
+    setNotifications((prev) => (prev.length > 0 ? [] : prev));
+    setUnreadCount((prev) => (prev > 0 ? 0 : prev));
+  }, []);
 
-  const handleToastPress = (notif: ReportNotification) => {
+  const requestPermission = useCallback(() => {
+    return NotificationHelper.requestPermissions();
+  }, []);
+
+  const handleToastPress = useCallback((notif: ReportNotification) => {
     setActiveToast(null);
     setUnreadCount((prev) => Math.max(0, prev - 1));
     router.push('/(collaborator)/supervision' as any);
-  };
+  }, []);
 
-  const handleDismissToast = () => {
+  const handleDismissToast = useCallback(() => {
     setActiveToast(null);
-  };
+  }, []);
+
+  const contextValue = useMemo(
+    () => ({
+      notifications,
+      unreadCount,
+      activeToast,
+      markAsRead,
+      clearAll,
+      requestPermission,
+    }),
+    [notifications, unreadCount, activeToast, markAsRead, clearAll, requestPermission]
+  );
 
   return (
-    <NotificationContext.Provider
-      value={{
-        notifications,
-        unreadCount,
-        activeToast,
-        markAsRead,
-        clearAll,
-        requestPermission: () => NotificationHelper.requestPermissions(),
-      }}
-    >
+    <NotificationContext.Provider value={contextValue}>
       {children}
       <NotificationToast
         notification={activeToast}
