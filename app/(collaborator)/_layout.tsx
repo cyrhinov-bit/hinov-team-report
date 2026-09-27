@@ -3,7 +3,7 @@ import { Tabs, router } from 'expo-router';
 import { TouchableOpacity, Text, StyleSheet, View, Image } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { COLORS } from '@/constants/colors';
-import { LayoutDashboard, CheckSquare, FileText, History, User, Shield } from 'lucide-react-native';
+import { LayoutDashboard, CheckSquare, FileText, History, User, Shield, ShieldCheck } from 'lucide-react-native';
 
 export default function CollaboratorLayout() {
   const { user } = useAuth();
@@ -82,6 +82,17 @@ export default function CollaboratorLayout() {
           headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <FileText size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="supervision"
+        options={{
+          title: 'Supervision',
+          headerShown: false,
+          href: isAdmin ? undefined : null,
+          tabBarIcon: ({ color, size }) => (
+            <ShieldCheck size={size} color={color} />
           ),
         }}
       />
