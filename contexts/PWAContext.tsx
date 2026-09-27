@@ -77,7 +77,9 @@ export const PWAProvider: React.FC<{ children?: React.ReactNode }> = ({ children
   }, []);
 
   const promptInstall = useCallback(async (): Promise<boolean> => {
-    const activePrompt = deferredPrompt || (typeof window !== 'undefined' ? (window as any).__deferredPrompt : null);
+    const activePrompt =
+      deferredPrompt ||
+      (typeof window !== 'undefined' ? (window as any).__deferredPrompt : null);
 
     if (activePrompt && typeof activePrompt.prompt === 'function') {
       try {
@@ -93,7 +95,21 @@ export const PWAProvider: React.FC<{ children?: React.ReactNode }> = ({ children
         return false;
       } catch (err) {
         console.warn('PWA prompt execution error:', err);
-        return false;
+      }
+    }
+
+    // If native prompt is not available (e.g. app already installed, or browser requires address bar icon/menu)
+    if (typeof window !== 'undefined') {
+      const ua = navigator.userAgent || '';
+      const isIOS = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream;
+      const isAndroid = /Android/.test(ua);
+
+      if (isIOS) {
+        alert("Pour installer sur iOS : Touchez l'icône Partager ⎋ puis 'Sur l'écran d'accueil'.");
+      } else if (isAndroid) {
+        alert("Pour installer : Touchez le menu ⋮ du navigateur puis 'Installer l'application'.");
+      } else {
+        alert("L'application peut être installée directement en cliquant sur l'icône ⊕ située à droite dans la barre d'adresse de votre navigateur (ou via le menu ⋮ > 'Installer').");
       }
     }
 
