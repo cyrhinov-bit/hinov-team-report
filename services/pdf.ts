@@ -264,7 +264,16 @@ export const PdfService = {
             ? `<div class="box-block" style="color: #676a6c; font-style: italic;">Aucune activité enregistrée pour cette semaine.</div>`
             : daysWithTasks
                 .map((day) => {
-                  const list = activitiesByDay[day.key] || [];
+                  const rawList = activitiesByDay[day.key] || [];
+                  const list = rawList.slice().sort((a, b) => {
+                    if ((a as any).order_index !== undefined && (b as any).order_index !== undefined) {
+                      return (a as any).order_index - (b as any).order_index;
+                    }
+                    const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+                    const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+                    if (timeA !== timeB) return timeA - timeB;
+                    return 0;
+                  });
                   return `
             <div class="day-container">
               <div class="day-title">

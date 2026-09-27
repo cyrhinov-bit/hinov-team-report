@@ -311,7 +311,16 @@ export default function ReportPreviewScreen() {
               );
             }
             return daysWithTasks.map((d) => {
-              const list = activitiesByDay[d.key] || [];
+              const rawList = activitiesByDay[d.key] || [];
+              const list = rawList.slice().sort((a, b) => {
+                if ((a as any).order_index !== undefined && (b as any).order_index !== undefined) {
+                  return (a as any).order_index - (b as any).order_index;
+                }
+                const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+                const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+                if (timeA !== timeB) return timeA - timeB;
+                return 0;
+              });
               return (
                 <View key={`prev-day-${d.key}`} style={styles.dayBox}>
                   <View style={styles.dayBoxHeader}>

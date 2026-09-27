@@ -219,7 +219,16 @@ function generateCorporateHtml(reportData: any): string {
       }
       return daysWithTasks
         .map((day) => {
-          const dayActs = activitiesByDay[day.key] || [];
+          const rawDayActs = activitiesByDay[day.key] || [];
+          const dayActs = rawDayActs.slice().sort((a: any, b: any) => {
+            if (a.order_index !== undefined && b.order_index !== undefined) {
+              return a.order_index - b.order_index;
+            }
+            const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+            if (timeA !== timeB) return timeA - timeB;
+            return 0;
+          });
           return `
           <div class="day-block">
             <div class="day-header">${day.label} (${dayActs.length} activité${dayActs.length > 1 ? "s" : ""})</div>
