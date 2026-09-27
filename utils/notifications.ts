@@ -1,22 +1,35 @@
 import { Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 
-// Configure default notification handler for native mobile
-if (Platform.OS !== 'web') {
-  try {
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-        shouldShowBanner: true,
-        shouldShowList: true,
-      }),
-    });
-  } catch (e) {
-    // ignore
+// Detect if running inside Expo Go (where Android push notifications was removed in SDK 53+)
+const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+
+let NotificationsModule: typeof import('expo-notifications') | null = null;
+
+const getNotificationsModule = async () => {
+  if (Platform.OS === 'web' || isExpoGo) {
+    return null;
   }
-}
+  if (!NotificationsModule) {
+    try {
+      NotificationsModule = await import('expo-notifications');
+      if (NotificationsModule && typeof NotificationsModule.setNotificationHandler === 'function') {
+        NotificationsModule.setNotificationHandler({
+          handleNotification: async () => ({
+            shouldShowAlert: true,
+            shouldPlaySound: true,
+            shouldSetBadge: true,
+            shouldShowBanner: true,
+            shouldShowList: true,
+          }),
+        });
+      }
+    } catch (e) {
+      // ignore in Expo Go or non-supported mobile environments
+    }
+  }
+  return NotificationsModule;
+};
 
 export const NotificationHelper = {
   async requestPermissions(): Promise<boolean> {
@@ -41,11 +54,13 @@ export const NotificationHelper = {
       return false;
     }
 
-    // 3. Mobile Native
+    // 3. Mobile Native (Only outside Expo Go, e.g. standalone/dev build)
     try {
-      const { status } = await Notifications.getPermissionsAsync();
+      const notif = await getNotificationsModule();
+      if (!notif) return true;
+      const { status } = await notif.getPermissionsAsync();
       if (status !== 'granted') {
-        const { status: newStatus } = await Notifications.requestPermissionsAsync();
+        const { status: newStatus } = await notif.requestPermissionsAsync();
         return newStatus === 'granted';
       }
       return true;
@@ -133,16 +148,19 @@ export const NotificationHelper = {
       return;
     }
 
-    // 3. Mobile Native (iOS / Android)
+    // 3. Mobile Native (iOS / Android outside Expo Go)
     try {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title,
-          body,
-          sound: true,
-        },
-        trigger: null, // Send immediately
-      });
+      const notif = await getNotificationsModule();
+      if (notif) {
+        await notif.scheduleNotificationAsync({
+          content: {
+            title,
+            body,
+            sound: true,
+          },
+          trigger: null, // Send immediately
+        });
+      }
     } catch (err) {
       console.warn('Native notification error:', err);
     }
