@@ -43,7 +43,7 @@ export default function SupervisionReportsScreen() {
 
   const loadData = useCallback(async () => {
     const allUsers = await AdminService.getAllUsers();
-    setUsers(allUsers.filter((u) => u.is_active && u.role !== 'super_admin'));
+    setUsers(allUsers.filter((u) => u.is_active));
 
     const weekReports = await ReportsService.getAllReportsForAdmin(week, year);
     setReports(weekReports);

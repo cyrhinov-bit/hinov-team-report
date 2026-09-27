@@ -64,7 +64,7 @@ export default function AdminDashboardScreen() {
 
   // Metrics calculation
   const activeCollaborators = users.filter(
-    (u) => u.is_active && u.role !== 'super_admin'
+    (u) => u.is_active
   );
   const totalCount = activeCollaborators.length || 1;
 
