@@ -1,34 +1,19 @@
 import { Platform } from 'react-native';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 
-// Detect if running inside Expo Go (where Android push notifications was removed in SDK 53+)
-const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+// Detect if running inside Expo Go (Android push was removed in SDK 53+ for Expo Go)
+const isExpoGo = Constants?.executionEnvironment === ExecutionEnvironment.StoreClient;
 
-let NotificationsModule: typeof import('expo-notifications') | null = null;
-
-const getNotificationsModule = async () => {
+const getNotificationsModule = () => {
   if (Platform.OS === 'web' || isExpoGo) {
     return null;
   }
-  if (!NotificationsModule) {
-    try {
-      NotificationsModule = await import('expo-notifications');
-      if (NotificationsModule && typeof NotificationsModule.setNotificationHandler === 'function') {
-        NotificationsModule.setNotificationHandler({
-          handleNotification: async () => ({
-            shouldShowAlert: true,
-            shouldPlaySound: true,
-            shouldSetBadge: true,
-            shouldShowBanner: true,
-            shouldShowList: true,
-          }),
-        });
-      }
-    } catch (e) {
-      // ignore in Expo Go or non-supported mobile environments
-    }
+  try {
+    const mod = require('expo-notifications');
+    return mod;
+  } catch (e) {
+    return null;
   }
-  return NotificationsModule;
 };
 
 export const NotificationHelper = {
@@ -54,9 +39,9 @@ export const NotificationHelper = {
       return false;
     }
 
-    // 3. Mobile Native (Only outside Expo Go, e.g. standalone/dev build)
+    // 3. Mobile Native (Outside Expo Go, e.g. production build)
     try {
-      const notif = await getNotificationsModule();
+      const notif = getNotificationsModule();
       if (!notif) return true;
       const { status } = await notif.getPermissionsAsync();
       if (status !== 'granted') {
@@ -150,8 +135,8 @@ export const NotificationHelper = {
 
     // 3. Mobile Native (iOS / Android outside Expo Go)
     try {
-      const notif = await getNotificationsModule();
-      if (notif) {
+      const notif = getNotificationsModule();
+      if (notif && typeof notif.scheduleNotificationAsync === 'function') {
         await notif.scheduleNotificationAsync({
           content: {
             title,
