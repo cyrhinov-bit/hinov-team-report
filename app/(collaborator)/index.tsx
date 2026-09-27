@@ -30,6 +30,7 @@ import {
   Sparkles,
 } from 'lucide-react-native';
 import { ColorLine } from '@/components/ui/ColorLine';
+import { PWAInstallButton } from '@/components/ui/PWAInstallButton';
 
 export default function CollaboratorDashboard() {
   const { user } = useAuth();
@@ -123,6 +124,9 @@ export default function CollaboratorDashboard() {
         </View>
         <Badge label={user?.role || 'collaborateur'} role={user?.role} />
       </View>
+
+      {/* PWA Install Banner on Web */}
+      <PWAInstallButton variant="banner" style={{ marginHorizontal: 0, marginBottom: 14 }} />
 
       {/* Admin Switch Banner (For Director & Super Admin) */}
       {isAdminOrDirector && (

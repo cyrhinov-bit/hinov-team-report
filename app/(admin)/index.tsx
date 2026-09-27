@@ -14,6 +14,7 @@ import { COLORS } from '@/constants/colors';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { StatsCard } from '@/components/admin/StatsCard';
+import { PWAInstallButton } from '@/components/ui/PWAInstallButton';
 import { AdminService } from '@/services/admin';
 import { ReportsService } from '@/services/reports';
 import { getWeekNumber } from '@/utils/date';
@@ -105,6 +106,9 @@ export default function AdminDashboardScreen() {
         </View>
         <Badge label={user?.role || 'admin'} role={user?.role} />
       </View>
+
+      {/* PWA Install Banner on Web */}
+      <PWAInstallButton variant="banner" style={{ marginHorizontal: 0, marginBottom: 14 }} />
 
       {/* KPI Stats Grid */}
       <View style={styles.statsGrid}>

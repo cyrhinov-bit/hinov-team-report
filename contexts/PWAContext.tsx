@@ -62,12 +62,17 @@ export const PWAProvider: React.FC<{ children?: React.ReactNode }> = ({ children
 
   const promptInstall = useCallback(async (): Promise<boolean> => {
     if (!deferredPrompt) {
-      // If iOS Safari or unsupported prompt, display guidance
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+        const ua = navigator.userAgent || '';
+        const isIOS = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream;
+        const isAndroid = /Android/.test(ua);
+
         if (isIOS) {
-          alert("Pour installer sur iPhone/iPad : Appuyez sur le bouton Partager puis sur 'Sur l'écran d'accueil'.");
-          return false;
+          alert("📱 Installation sur iPhone / iPad :\n\n1. Touchez le bouton de partage (icône avec une flèche vers le haut).\n2. Faites défiler et sélectionnez « Sur l'écran d'accueil ».\n3. Touchez « Ajouter ».");
+        } else if (isAndroid) {
+          alert("📱 Installation sur Android :\n\n1. Touchez les 3 points verticaux (⋮) en haut à droite du navigateur.\n2. Sélectionnez « Ajouter à l'écran d'accueil » ou « Installer l'application ».");
+        } else {
+          alert("💻 Installation sur Ordinateur (Chrome / Edge / Brave) :\n\n1. Cliquez sur l'icône d'installation (⊕ ou écran avec flèche) située tout à droite dans la barre d'adresse du navigateur.\n2. Ou cliquez sur le menu (⋮) > « Installer Hinov Team Report ».");
         }
       }
       return false;
