@@ -18,6 +18,7 @@ import { confirmAction } from '@/utils/alert';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { PWAInstallButton } from '@/components/ui/PWAInstallButton';
 import {
   Camera,
   Lock,
@@ -224,6 +225,9 @@ export default function ProfileScreen() {
           </View>
           <ChevronRight size={18} color={COLORS.textMuted} />
         </TouchableOpacity>
+
+        {/* PWA Install Button on Web */}
+        <PWAInstallButton variant="card" />
       </View>
 
       {/* Admin Quick Menu (for Super Admin & Director) */}

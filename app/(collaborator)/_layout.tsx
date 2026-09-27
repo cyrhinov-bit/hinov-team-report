@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { COLORS } from '@/constants/colors';
 import { LayoutDashboard, CheckSquare, FileText, History, User, Shield, ShieldCheck } from 'lucide-react-native';
+import { PWAInstallButton } from '@/components/ui/PWAInstallButton';
 
 const TAB_PALETTES = {
   dashboard: {
@@ -95,17 +96,21 @@ export default function CollaboratorLayout() {
               />
             </View>
           ),
-          headerRight: () =>
-            isAdmin ? (
-              <TouchableOpacity
-                style={styles.adminHeaderBtn}
-                onPress={() => router.push('/(admin)')}
-                activeOpacity={0.8}
-              >
-                <Shield size={14} color={COLORS.primaryAccent} />
-                <Text style={styles.adminHeaderBtnText}>Admin</Text>
-              </TouchableOpacity>
-            ) : null,
+          headerRight: () => (
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <PWAInstallButton variant="header" />
+              {isAdmin ? (
+                <TouchableOpacity
+                  style={styles.adminHeaderBtn}
+                  onPress={() => router.push('/(admin)')}
+                  activeOpacity={0.8}
+                >
+                  <Shield size={14} color={COLORS.primaryAccent} />
+                  <Text style={styles.adminHeaderBtnText}>Admin</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ),
           tabBarIcon: ({ focused }) => (
             <View
               style={[

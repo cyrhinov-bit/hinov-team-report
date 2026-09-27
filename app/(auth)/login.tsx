@@ -15,6 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { COLORS } from '@/constants/colors';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { PWAInstallButton } from '@/components/ui/PWAInstallButton';
 import { Mail, Lock, ShieldCheck, CheckCircle2 } from 'lucide-react-native';
 import { ColorLine } from '@/components/ui/ColorLine';
 
@@ -140,6 +141,8 @@ export default function LoginScreen() {
             size="lg"
             style={{ width: '100%', marginTop: 8 }}
           />
+
+          <PWAInstallButton variant="card" style={{ marginTop: 14 }} />
         </View>
 
         {/* Security Footer */}
