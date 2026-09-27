@@ -160,9 +160,20 @@ export const AuthService = {
 
   async logout(): Promise<void> {
     if (isSupabaseConfigured) {
-      await supabase.auth.signOut();
+      try {
+        await supabase.auth.signOut();
+      } catch (e) {
+        console.warn('SignOut error:', e);
+      }
     }
     await this.setStoredProfile(null);
+    try {
+      await AsyncStorage.removeItem('@htr_user_profile');
+      await AsyncStorage.removeItem('@htr_activities');
+      await AsyncStorage.removeItem('@htr_reports');
+    } catch (e) {
+      // ignore
+    }
   },
 };
 

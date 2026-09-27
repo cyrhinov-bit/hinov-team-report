@@ -3,6 +3,7 @@ import { UserProfile } from '@/types';
 import { AuthService } from '@/services/auth';
 import { supabase, isSupabaseConfigured } from '@/services/supabase';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -24,10 +25,8 @@ export const AuthProvider: React.FC<{ children?: React.ReactNode }> = ({ childre
   const loadSession = async () => {
     try {
       setIsLoading(true);
-      const stored = await AuthService.getStoredProfile();
-      if (stored) {
-        setUser(stored);
-      }
+      const isValidUuid = (id?: string | null) =>
+        id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
       if (isSupabaseConfigured) {
         const { data: { session } } = await supabase.auth.getSession();
@@ -38,10 +37,28 @@ export const AuthProvider: React.FC<{ children?: React.ReactNode }> = ({ childre
             .eq('id', session.user.id)
             .single();
 
-          if (profile) {
+          if (profile && profile.is_active) {
             setUser(profile);
             await AuthService.setStoredProfile(profile);
+          } else {
+            await supabase.auth.signOut();
+            setUser(null);
+            await AuthService.setStoredProfile(null);
           }
+        } else {
+          // No active Supabase Auth session -> wipe local mock data
+          setUser(null);
+          await AuthService.setStoredProfile(null);
+          await AsyncStorage.removeItem('@htr_activities').catch(() => {});
+          await AsyncStorage.removeItem('@htr_reports').catch(() => {});
+        }
+      } else {
+        const stored = await AuthService.getStoredProfile();
+        if (stored && isValidUuid(stored.id)) {
+          setUser(stored);
+        } else {
+          setUser(null);
+          await AuthService.setStoredProfile(null);
         }
       }
     } catch (err) {
