@@ -4,9 +4,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ACTIVITIES_STORAGE_KEY = '@htr_activities';
 
+const isValidUuid = (id?: string | null): boolean => {
+  if (!id) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+};
+
 export const ActivitiesService = {
   async getActivitiesForUser(userId: string, startDate?: string, endDate?: string): Promise<Activity[]> {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured || !isValidUuid(userId)) {
       const raw = await AsyncStorage.getItem(ACTIVITIES_STORAGE_KEY);
       let list: Activity[] = raw ? JSON.parse(raw) : [];
       list = list.filter((a) => a.user_id === userId);
@@ -37,7 +42,7 @@ export const ActivitiesService = {
   },
 
   async getActivityById(id: string): Promise<Activity | null> {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured || !isValidUuid(id)) {
       const raw = await AsyncStorage.getItem(ACTIVITIES_STORAGE_KEY);
       const list: Activity[] = raw ? JSON.parse(raw) : [];
       return list.find((a) => a.id === id) || null;
@@ -59,7 +64,7 @@ export const ActivitiesService = {
   },
 
   async createActivity(activity: Omit<Activity, 'id' | 'is_locked' | 'created_at' | 'updated_at'>): Promise<{ activity: Activity | null; error?: string }> {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured || !isValidUuid(activity.user_id)) {
       const raw = await AsyncStorage.getItem(ACTIVITIES_STORAGE_KEY);
       const list: Activity[] = raw ? JSON.parse(raw) : [];
       const newAct: Activity = {
@@ -88,7 +93,7 @@ export const ActivitiesService = {
   },
 
   async updateActivity(id: string, updates: Partial<Activity>): Promise<{ success: boolean; error?: string }> {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured || !isValidUuid(id)) {
       const raw = await AsyncStorage.getItem(ACTIVITIES_STORAGE_KEY);
       let list: Activity[] = raw ? JSON.parse(raw) : [];
       list = list.map((a) => (a.id === id ? { ...a, ...updates, updated_at: new Date().toISOString() } : a));
@@ -110,7 +115,7 @@ export const ActivitiesService = {
   },
 
   async deleteActivity(id: string): Promise<{ success: boolean; error?: string }> {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured || !isValidUuid(id)) {
       const raw = await AsyncStorage.getItem(ACTIVITIES_STORAGE_KEY);
       let list: Activity[] = raw ? JSON.parse(raw) : [];
       list = list.filter((a) => a.id !== id);
@@ -133,18 +138,21 @@ export const ActivitiesService = {
 
   async lockActivities(activityIds: string[]): Promise<void> {
     if (activityIds.length === 0) return;
-    if (!isSupabaseConfigured) {
+    const validUuids = activityIds.filter((id) => isValidUuid(id));
+    const nonUuids = activityIds.filter((id) => !isValidUuid(id));
+
+    if (nonUuids.length > 0 || !isSupabaseConfigured) {
       const raw = await AsyncStorage.getItem(ACTIVITIES_STORAGE_KEY);
       let list: Activity[] = raw ? JSON.parse(raw) : [];
       list = list.map((a) => (activityIds.includes(a.id) ? { ...a, is_locked: true } : a));
       await AsyncStorage.setItem(ACTIVITIES_STORAGE_KEY, JSON.stringify(list));
-      return;
     }
 
-    await supabase
-      .from('activities')
-      .update({ is_locked: true })
-      .in('id', activityIds);
+    if (isSupabaseConfigured && validUuids.length > 0) {
+      await supabase
+        .from('activities')
+        .update({ is_locked: true })
+        .in('id', validUuids);
+    }
   },
 };
-

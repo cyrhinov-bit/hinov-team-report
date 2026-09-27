@@ -7,6 +7,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const REPORTS_STORAGE_KEY = '@htr_reports';
 
+const isValidUuid = (id?: string | null): boolean => {
+  if (!id) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+};
+
 export const ReportsService = {
   async getOrCreateWeeklyDraft(user: UserProfile, weekNumber?: number, year?: number): Promise<WeeklyReport> {
     const currentInfo = getWeekNumber();
@@ -14,7 +19,7 @@ export const ReportsService = {
     const y = year ?? currentInfo.year;
     const range = getWeekRange(w, y);
 
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured || !isValidUuid(user.id)) {
       const raw = await AsyncStorage.getItem(REPORTS_STORAGE_KEY);
       const reports: WeeklyReport[] = raw ? JSON.parse(raw) : [];
       let foundIndex = reports.findIndex((r) => r.user_id === user.id && r.week_number === w && r.year === y);
@@ -173,7 +178,7 @@ export const ReportsService = {
   },
 
   async saveReportDraft(reportId: string, updates: Partial<WeeklyReport>): Promise<{ success: boolean; error?: string }> {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured || !isValidUuid(reportId)) {
       const raw = await AsyncStorage.getItem(REPORTS_STORAGE_KEY);
       let reports: WeeklyReport[] = raw ? JSON.parse(raw) : [];
       reports = reports.map((r) => (r.id === reportId ? { ...r, ...updates, updated_at: new Date().toISOString() } : r));
@@ -224,7 +229,7 @@ export const ReportsService = {
 
     const isDirector = user.role === 'directeur_admin';
 
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured || !isValidUuid(user.id)) {
       await this.saveReportDraft(report.id, {
         status: 'soumis',
         submitted_at: new Date().toISOString(),
@@ -315,7 +320,7 @@ export const ReportsService = {
   },
 
   async getReportsHistory(userId: string): Promise<WeeklyReport[]> {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured || !isValidUuid(userId)) {
       const raw = await AsyncStorage.getItem(REPORTS_STORAGE_KEY);
       const reports: WeeklyReport[] = raw ? JSON.parse(raw) : [];
       return reports
