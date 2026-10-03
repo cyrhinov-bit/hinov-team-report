@@ -21,7 +21,7 @@ import { ReportsService } from '@/services/reports';
 import { ActivitiesService } from '@/services/activities';
 import { PdfService } from '@/services/pdf';
 import { SettingsService } from '@/services/settings';
-import { WeeklyReport, Activity, CompanySettings } from '@/types';
+import { WeeklyReport, Activity, CompanySettings, UserProfile } from '@/types';
 import { FRENCH_DAYS, getWeekNumber, getWeekRange } from '@/utils/date';
 import { confirmAction, showAlert } from '@/utils/alert';
 import { NotificationHelper } from '@/utils/notifications';
@@ -159,11 +159,12 @@ export default function ReportPreviewScreen() {
   }
 
   const isSubmitted = report.status === 'soumis';
+  const reportAuthor: UserProfile = report.author || user;
   const isDirector = user.role === 'directeur_admin';
 
   const handleSharePdf = async () => {
     try {
-      await PdfService.sharePdf(report!, user, activitiesByDay, settings || undefined);
+      await PdfService.sharePdf(report!, reportAuthor, activitiesByDay, settings || undefined);
     } catch (err: any) {
       showAlert('Erreur', 'Impossible de générer le fichier PDF pour le partage.');
     }
@@ -171,7 +172,7 @@ export default function ReportPreviewScreen() {
 
   const handlePrint = async () => {
     try {
-      await PdfService.printReport(report!, user, activitiesByDay, settings || undefined);
+      await PdfService.printReport(report!, reportAuthor, activitiesByDay, settings || undefined);
     } catch (err: any) {
       showAlert('Erreur', 'Impossible de lancer l’impression.');
     }
@@ -189,8 +190,8 @@ export default function ReportPreviewScreen() {
         setSubmitting(true);
         try {
           // Generate PDF base64 for archiving and storage
-          const pdfFile = await PdfService.generatePdfFile(report!, user, activitiesByDay, settings || undefined);
-          const res = await ReportsService.submitReport(report!, user, pdfFile.base64);
+          const pdfFile = await PdfService.generatePdfFile(report!, reportAuthor, activitiesByDay, settings || undefined);
+          const res = await ReportsService.submitReport(report!, reportAuthor, pdfFile.base64);
 
           setSubmitting(false);
 
@@ -199,7 +200,7 @@ export default function ReportPreviewScreen() {
             await NotificationHelper.notifyReportSubmitted({
               week: report!.week_number,
               year: report!.year,
-              authorName: user.full_name,
+              authorName: reportAuthor.full_name,
               recipientEmail: report!.email_recipient || undefined,
             });
 
@@ -282,13 +283,13 @@ export default function ReportPreviewScreen() {
 
           {/* User Profile Info Card with Photo */}
           <View style={styles.userCard}>
-            <Avatar url={user.avatar_url} name={user.full_name} size={54} showBorder />
+            <Avatar url={reportAuthor.avatar_url} name={reportAuthor.full_name} size={54} showBorder />
             <View style={styles.userDetails}>
-              <Text style={styles.userName}>{user.full_name}</Text>
+              <Text style={styles.userName}>{reportAuthor.full_name}</Text>
               <Text style={styles.userMeta}>
-                {user.job_title || 'Collaborateur'} — {user.department || 'Département HINOV'}
+                {reportAuthor.job_title || 'Collaborateur'} — {reportAuthor.department || 'Département HINOV'}
               </Text>
-              <Text style={styles.userEmail}>{user.email}</Text>
+              <Text style={styles.userEmail}>{reportAuthor.email}</Text>
             </View>
             <View style={styles.periodBox}>
               <Text style={styles.periodLabel}>PÉRIODE D'ACTIVITÉ</Text>

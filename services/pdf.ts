@@ -11,6 +11,8 @@ export const PdfService = {
     activitiesByDay: Record<number, Activity[]>,
     companySettings?: Partial<CompanySettings>
   ): string {
+    const author = report.author || user;
+
     const dayLabels = [
       { key: 1, name: 'LUNDI' },
       { key: 2, name: 'MARDI' },
@@ -24,7 +26,7 @@ export const PdfService = {
     const footerText = companySettings?.pdf_footer_text || 'HINOV Team Report • Document Confidentiel';
 
     const avatarUrl =
-      user.avatar_url ||
+      author.avatar_url ||
       'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80';
 
     // Filter only days with activities
@@ -37,7 +39,7 @@ export const PdfService = {
       <html lang="fr">
       <head>
         <meta charset="utf-8">
-        <title>Rapport Hebdomadaire - ${user.full_name}</title>
+        <title>Rapport Hebdomadaire - ${author.full_name}</title>
         <style>
           @page { size: A4 portrait; margin: 10mm 12mm; }
           * { box-sizing: border-box; }
@@ -246,11 +248,11 @@ export const PdfService = {
         </div>
 
         <div class="user-card">
-          <img class="avatar" src="${avatarUrl}" alt="${user.full_name}" />
+          <img class="avatar" src="${avatarUrl}" alt="${author.full_name}" />
           <div class="user-details">
-            <h2>${user.full_name}</h2>
-            <p>${user.job_title || 'Collaborateur'} — ${user.department || 'Département HINOV'}</p>
-            <p style="font-size: 10.5px; color: #999999;">${user.email}</p>
+            <h2>${author.full_name}</h2>
+            <p>${author.job_title || 'Collaborateur'} — ${author.department || 'Département HINOV'}</p>
+            <p style="font-size: 10.5px; color: #999999;">${author.email}</p>
           </div>
           <div class="period-meta">
             <div class="period-label">Période d'activité</div>
